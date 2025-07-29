@@ -71,7 +71,7 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
           .item { margin: 5px 0; }
           .item-name { font-weight: bold; }
           .item-details { font-size: 10px; color: #666; }
-          .line { border-top: 1px dashed #ccc; margin: 5px 0; }
+          .line { border-top: 1px dashed #000; margin: 5px 0; }
           .total { font-weight: bold; font-size: 14px; }
           .loyalty-box { border: 1px solid #000; padding: 5px; margin: 10px 0; text-align: center; }
           .bold { font-weight: bold; }
@@ -128,10 +128,12 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
           <span>₹${transaction.rounding_adjustment.toFixed(2)}</span>
         </div>
         ` : ''}
+        <div class="line"></div>
         <div class="row total">
           <span>TOTAL:</span>
           <span>₹${transaction.total_amount.toFixed(2)}</span>
         </div>
+        <div class="line"></div>
         
         <div class="row">
           <span>Payment Method:</span>
@@ -248,9 +250,9 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
             <td class="text-right">₹${transaction.rounding_adjustment.toFixed(2)}</td>
           </tr>
           ` : ''}
-          <tr class="total-row">
-            <td>TOTAL:</td>
-            <td class="text-right">₹${transaction.total_amount.toFixed(2)}</td>
+          <tr style="border-top: 2px dashed #333; border-bottom: 2px dashed #333;">
+            <td style="font-weight: bold; font-size: 18px; padding: 10px 8px;">TOTAL:</td>
+            <td class="text-right" style="font-weight: bold; font-size: 18px; padding: 10px 8px;">₹${transaction.total_amount.toFixed(2)}</td>
           </tr>
         </table>
         
@@ -373,10 +375,12 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
                 <span>₹{transaction.rounding_adjustment.toFixed(2)}</span>
               </div>
             )}
-            <div className="flex justify-between font-bold">
+            <div className="border-t border-dashed border-black my-2"></div>
+            <div className="flex justify-between font-bold text-lg bg-gray-100 p-2 rounded">
               <span>Total:</span>
               <span>₹{transaction.total_amount.toFixed(2)}</span>
             </div>
+            <div className="border-t border-dashed border-black my-2"></div>
 
             {transaction.payment_method === "cash" && (
               <>

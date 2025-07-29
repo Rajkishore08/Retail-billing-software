@@ -4,8 +4,25 @@ import type React from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { LoginForm } from "@/components/login-form"
 import { Sidebar } from "@/components/layout/sidebar"
+import { ThemeProvider } from "@/components/theme-provider"
+import { AuthProvider } from "@/contexts/auth-context"
 
 export function AppContent({ children }: { children: React.ReactNode }) {
+  return (
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="dark"
+      enableSystem
+      disableTransitionOnChange
+    >
+      <AuthProvider>
+        <AppContentInner>{children}</AppContentInner>
+      </AuthProvider>
+    </ThemeProvider>
+  )
+}
+
+function AppContentInner({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
 
   // Show loading spinner

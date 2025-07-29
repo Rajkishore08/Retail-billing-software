@@ -16,6 +16,7 @@ import {
   Moon,
   Sun,
   ShoppingBag,
+  BarChart3,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 
@@ -26,6 +27,7 @@ const navigation = [
   { name: "Customers", href: "/customers", icon: Users },
   { name: "Inventory", href: "/inventory", icon: Warehouse },
   { name: "Sales Overview", href: "/sales", icon: TrendingUp },
+  { name: "Reports", href: "/reports", icon: BarChart3 },
   { name: "Settings", href: "/settings", icon: Settings },
 ]
 

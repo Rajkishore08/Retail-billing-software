@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Edit, Trash2, Package } from "lucide-react"
+import { Plus, Edit, Trash2, Package, Scan } from "lucide-react"
 import { supabase } from "@/lib/supabase-client"
 import { toast } from "sonner"
 
@@ -36,11 +36,19 @@ export default function ProductsPage() {
     stock_quantity: "",
     min_stock_level: "5",
     gst_rate: "18",
-    price_includes_gst: "false",
+    price_includes_gst: "true",
     hsn_code: "",
     brand: "",
     barcode: "",
   })
+  
+  // Barcode scanner state
+  const [isScanning, setIsScanning] = useState(false)
+  const barcodeInputRef = useRef<HTMLInputElement>(null)
+
+  const [brands, setBrands] = useState<string[]>([])
+  const [showBrandSuggestions, setShowBrandSuggestions] = useState(false)
+  const [filteredBrands, setFilteredBrands] = useState<string[]>([])
 
   const fetchProducts = async () => {
     try {
@@ -56,6 +64,10 @@ export default function ProductsPage() {
       }
 
       setProducts(data || [])
+      
+      // Extract unique brands for suggestions
+      const uniqueBrands = [...new Set((data || []).map(p => p.brand).filter(b => b && b.trim()))].sort()
+      setBrands(uniqueBrands)
     } catch (error) {
       console.error("Error:", error)
       toast.error("Failed to load products")
@@ -64,9 +76,78 @@ export default function ProductsPage() {
     }
   }
 
+  // Filter brands based on input
+  const handleBrandInputChange = (value: string) => {
+    setFormData(prev => ({ ...prev, brand: value }))
+    
+    if (value.trim()) {
+      const filtered = brands.filter(brand => 
+        brand.toLowerCase().includes(value.toLowerCase())
+      )
+      setFilteredBrands(filtered)
+      setShowBrandSuggestions(filtered.length > 0)
+    } else {
+      setShowBrandSuggestions(false)
+    }
+  }
+
+  const selectBrand = (brand: string) => {
+    setFormData(prev => ({ ...prev, brand }))
+    setShowBrandSuggestions(false)
+  }
+
   useEffect(() => {
     fetchProducts()
   }, [])
+
+  // Barcode scanner functionality
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Check if barcode input is focused
+      if (document.activeElement === barcodeInputRef.current) {
+        return
+      }
+
+      // If Enter is pressed and we're not in a text input, treat as barcode
+      if (event.key === 'Enter' && !isScanning) {
+        setIsScanning(true)
+        setTimeout(() => setIsScanning(false), 1000) // Reset after 1 second
+        
+        // Focus the barcode input
+        if (barcodeInputRef.current) {
+          barcodeInputRef.current.focus()
+        }
+      }
+    }
+
+    window.addEventListener('keypress', handleKeyPress)
+    return () => window.removeEventListener('keypress', handleKeyPress)
+  }, [isScanning])
+
+  const handleBarcodeScan = (barcode: string) => {
+    // Check if product with this barcode already exists
+    const existingProduct = products.find(p => p.barcode === barcode)
+    
+    if (existingProduct) {
+      toast.info(`Product found: ${existingProduct.name}`)
+      // Optionally auto-fill form with existing product data
+      setFormData({
+        name: existingProduct.name,
+        price: existingProduct.price.toString(),
+        stock_quantity: existingProduct.stock_quantity.toString(),
+        min_stock_level: existingProduct.min_stock_level.toString(),
+        gst_rate: existingProduct.gst_rate.toString(),
+        price_includes_gst: existingProduct.price_includes_gst ? "true" : "false",
+        hsn_code: existingProduct.hsn_code,
+        brand: existingProduct.brand,
+        barcode: existingProduct.barcode || "",
+      })
+    } else {
+      // New product - just set the barcode
+      setFormData(prev => ({ ...prev, barcode }))
+      toast.success(`Barcode scanned: ${barcode}`)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -107,7 +188,7 @@ export default function ProductsPage() {
       fetchProducts()
     } catch (error) {
       console.error("Error saving product:", error)
-      toast.error("Error saving product")
+      toast.error("Failed to save product")
     }
   }
 
@@ -119,7 +200,7 @@ export default function ProductsPage() {
       stock_quantity: product.stock_quantity.toString(),
       min_stock_level: product.min_stock_level.toString(),
       gst_rate: product.gst_rate.toString(),
-      price_includes_gst: product.price_includes_gst.toString(),
+      price_includes_gst: product.price_includes_gst ? "true" : "false",
       hsn_code: product.hsn_code,
       brand: product.brand,
       barcode: product.barcode || "",
@@ -141,7 +222,7 @@ export default function ProductsPage() {
       fetchProducts()
     } catch (error) {
       console.error("Error deleting product:", error)
-      toast.error("Error deleting product")
+      toast.error("Failed to delete product")
     }
   }
 
@@ -152,7 +233,7 @@ export default function ProductsPage() {
       stock_quantity: "",
       min_stock_level: "5",
       gst_rate: "18",
-      price_includes_gst: "false",
+      price_includes_gst: "true",
       hsn_code: "",
       brand: "",
       barcode: "",
@@ -199,6 +280,19 @@ export default function ProductsPage() {
           Add Product
         </Button>
       </div>
+
+      {/* Barcode Scanner Instructions */}
+      <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Scan className="h-5 w-5 text-blue-600" />
+            <h3 className="font-semibold text-blue-900 dark:text-blue-100">Barcode Scanner Ready</h3>
+          </div>
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            Connect your barcode scanner and press Enter to scan. The scanner will automatically focus on the barcode field.
+          </p>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {products.map((product) => (
@@ -294,14 +388,33 @@ export default function ProductsPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
+              <div className="space-y-2 relative">
                 <Label htmlFor="brand">Brand</Label>
                 <Input
                   id="brand"
                   value={formData.brand}
-                  onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                  placeholder="Generic"
+                  onChange={(e) => handleBrandInputChange(e.target.value)}
+                  onBlur={() => setTimeout(() => setShowBrandSuggestions(false), 200)}
+                  onFocus={() => {
+                    if (formData.brand.trim()) {
+                      handleBrandInputChange(formData.brand)
+                    }
+                  }}
+                  placeholder="Type to search brands..."
                 />
+                {showBrandSuggestions && filteredBrands.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    {filteredBrands.map((brand, index) => (
+                      <div
+                        key={index}
+                        className="p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+                        onClick={() => selectBrand(brand)}
+                      >
+                        {brand}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="hsn_code">HSN Code</Label>
@@ -339,12 +452,35 @@ export default function ProductsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="barcode">Barcode (Optional)</Label>
+              <Label htmlFor="barcode" className="flex items-center gap-2">
+                <Scan className="h-4 w-4" />
+                Barcode (Optional)
+              </Label>
               <Input
                 id="barcode"
+                ref={barcodeInputRef}
                 value={formData.barcode}
-                onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                placeholder="Enter barcode"
+                onChange={(e) => {
+                  const value = e.target.value
+                  setFormData({ ...formData, barcode: value })
+                  
+                  // Auto-detect barcode scan (if it ends with Enter)
+                  if (value.endsWith('\n') || value.endsWith('\r')) {
+                    const barcode = value.trim()
+                    handleBarcodeScan(barcode)
+                    e.target.value = barcode // Remove the Enter character
+                  }
+                }}
+                placeholder="Scan barcode or enter manually"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    const barcode = e.currentTarget.value.trim()
+                    if (barcode) {
+                      handleBarcodeScan(barcode)
+                    }
+                  }
+                }}
               />
             </div>
 
@@ -357,7 +493,7 @@ export default function ProductsPage() {
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
               <Label htmlFor="price_includes_gst" className="text-sm text-muted-foreground">
-                Price includes GST
+                Price includes GST (recommended)
               </Label>
             </div>
 

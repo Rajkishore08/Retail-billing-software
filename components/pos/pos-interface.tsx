@@ -64,6 +64,10 @@ export function POSInterface() {
   const [loyaltyPointsRedeemed, setLoyaltyPointsRedeemed] = useState(0)
   const [loyaltyDiscountAmount, setLoyaltyDiscountAmount] = useState(0)
 
+  // Barcode scanner state
+  const [isScanning, setIsScanning] = useState(false)
+  const barcodeInputRef = useRef<HTMLInputElement>(null)
+
   // Memoized filtered products for better performance
   const filteredProducts = useMemo(() => {
     let filtered = products
@@ -139,20 +143,38 @@ export function POSInterface() {
   const fetchProducts = useCallback(async () => {
     try {
       setProductsLoading(true)
+      console.log("Fetching products...")
+      
       const { data, error } = await supabase.rpc('get_products_with_stock')
 
       if (error) {
         console.error("Error fetching products:", error)
+        // Fallback to direct query if RPC fails
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('products')
+          .select('*')
+          .gt('stock_quantity', 0)
+          .order('name')
+        
+        if (fallbackError) {
+          console.error("Fallback query also failed:", fallbackError)
+          return
+        }
+        
+        setProducts(fallbackData || [])
+        const uniqueBrands = [...new Set((fallbackData || []).map((p: Product) => p.brand || 'Generic'))].sort() as string[]
+        setBrands(uniqueBrands)
         return
       }
 
+      console.log("Products fetched successfully:", data?.length || 0)
       setProducts(data || [])
       
       // Extract unique brands
-      const uniqueBrands = [...new Set((data || []).map((p: Product) => p.brand))].sort() as string[]
+      const uniqueBrands = [...new Set((data || []).map((p: Product) => p.brand || 'Generic'))].sort() as string[]
       setBrands(uniqueBrands)
     } catch (error) {
-      console.error("Error:", error)
+      console.error("Error in fetchProducts:", error)
     } finally {
       setProductsLoading(false)
     }
@@ -160,18 +182,39 @@ export function POSInterface() {
 
   const fetchLastBillNumber = useCallback(async () => {
     try {
+      console.log("Fetching last bill number...")
       const { data, error } = await supabase.rpc('get_last_bill_number')
 
       if (error) {
         console.error("Error fetching last bill number:", error)
+        // Fallback to direct query if RPC fails
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('transactions')
+          .select('invoice_number')
+          .like('invoice_number', 'NM %')
+          .order('invoice_number', { ascending: false })
+          .limit(1)
+          .single()
+        
+        if (fallbackError) {
+          console.error("Fallback query also failed:", fallbackError)
+          lastBillNumberRef.current = 'NM 0000'
+          return
+        }
+        
+        if (fallbackData?.invoice_number) {
+          lastBillNumberRef.current = fallbackData.invoice_number
+        }
         return
       }
 
       if (data) {
+        console.log("Last bill number fetched:", data)
         lastBillNumberRef.current = data
       }
     } catch (error) {
-      console.error("Error:", error)
+      console.error("Error in fetchLastBillNumber:", error)
+      lastBillNumberRef.current = 'NM 0000'
     }
   }, [])
 
@@ -240,11 +283,43 @@ export function POSInterface() {
       return
     }
 
+    if (!profile?.id) {
+      toast.error("Please log in to process payments")
+      return
+    }
+
     setLoading(true)
 
     try {
       // Generate invoice number
       const invoiceNumber = getNextBillNumber()
+
+      // Check if database is properly set up
+      console.log("Checking database setup...")
+      const { data: dbCheck, error: dbCheckError } = await supabase
+        .from('products')
+        .select('hsn_code, brand, price_includes_gst')
+        .limit(1)
+      
+      if (dbCheckError) {
+        console.error("Database setup check failed:", dbCheckError)
+        toast.error("Database not properly configured. Please run the database setup script.")
+        return
+      }
+      
+      console.log("Database setup check passed:", dbCheck)
+
+      // Debug logging
+      console.log("Processing payment with data:", {
+        invoiceNumber,
+        profile: profile?.id,
+        selectedCustomer: selectedCustomer?.id,
+        subtotal,
+        gstAmount,
+        roundedTotal,
+        paymentMethod,
+        cartLength: cart.length
+      })
 
       // Create transaction
       const transactionData = {
@@ -266,13 +341,35 @@ export function POSInterface() {
         status: "completed" as const,
       }
 
+      console.log("Transaction data:", transactionData)
+
+      console.log("Attempting to insert transaction...")
       const { data: transaction, error: transactionError } = await supabase
         .from("transactions")
         .insert(transactionData)
         .select()
         .single()
 
-      if (transactionError) throw transactionError
+      if (transactionError) {
+        console.error("Transaction insert error:", transactionError)
+        console.error("Transaction data that failed:", transactionData)
+        
+        // Check if it's a materialized view error
+        if (transactionError.message && transactionError.message.includes('materialized view')) {
+          toast.error("Database configuration error. Please run the database fix script.")
+          return
+        }
+        
+        // Check if it's a column error
+        if (transactionError.message && transactionError.message.includes('column')) {
+          toast.error("Database schema error. Please run the database setup script.")
+          return
+        }
+        
+        throw transactionError
+      }
+      
+      console.log("Transaction created successfully:", transaction)
 
       // Create transaction items
       const transactionItems = cart.map((item) => ({
@@ -286,12 +383,33 @@ export function POSInterface() {
         price_includes_gst: item.product.price_includes_gst,
       }))
 
+      console.log("Creating transaction items:", transactionItems)
+      
       const { error: itemsError } = await supabase.from("transaction_items").insert(transactionItems)
 
-      if (itemsError) throw itemsError
+      if (itemsError) {
+        console.error("Transaction items insert error:", itemsError)
+        console.error("Error details:", {
+          message: itemsError.message,
+          code: itemsError.code,
+          details: itemsError.details,
+          hint: itemsError.hint
+        })
+        
 
+        
+        throw itemsError
+      }
+      
+            console.log("Transaction items created successfully")
+      
+      // If we get here, the database is working correctly
+      console.log("✅ Database operations are working correctly")
+      
       // Update stock quantities
+      console.log("Updating stock quantities...")
       for (const item of cart) {
+        console.log(`Updating stock for ${item.product.name}: ${item.product.stock_quantity} - ${item.quantity}`)
         const { error: stockError } = await supabase
           .from("products")
           .update({
@@ -299,15 +417,23 @@ export function POSInterface() {
           })
           .eq("id", item.product.id)
 
-        if (stockError) throw stockError
+        if (stockError) {
+          console.error("Stock update error:", stockError)
+          throw stockError
+        }
       }
+      
+      console.log("Stock quantities updated successfully")
 
       // Update customer loyalty points
       if (selectedCustomer) {
+        console.log("Updating customer loyalty points...")
         const newLoyaltyPoints = selectedCustomer.loyalty_points + loyaltyPointsEarned - loyaltyPointsRedeemed
         const newTotalSpent = selectedCustomer.total_spent + roundedTotal
 
-        await supabase
+        console.log(`Customer loyalty update: ${selectedCustomer.loyalty_points} + ${loyaltyPointsEarned} - ${loyaltyPointsRedeemed} = ${newLoyaltyPoints}`)
+
+        const { error: customerUpdateError } = await supabase
           .from("customers")
           .update({
             loyalty_points: newLoyaltyPoints,
@@ -315,8 +441,14 @@ export function POSInterface() {
           })
           .eq("id", selectedCustomer.id)
 
+        if (customerUpdateError) {
+          console.error("Customer update error:", customerUpdateError)
+          throw customerUpdateError
+        }
+
         // Create loyalty transaction records
         if (loyaltyPointsEarned > 0 || loyaltyPointsRedeemed > 0) {
+          console.log("Creating loyalty transaction record...")
           const loyaltyTransactionData = {
             customer_id: selectedCustomer.id,
             transaction_id: transaction.id,
@@ -326,7 +458,14 @@ export function POSInterface() {
             transaction_type: loyaltyPointsEarned > 0 ? 'earned' : 'redeemed'
           }
 
-          await supabase.from("loyalty_transactions").insert(loyaltyTransactionData)
+          const { error: loyaltyError } = await supabase.from("loyalty_transactions").insert(loyaltyTransactionData)
+          
+          if (loyaltyError) {
+            console.error("Loyalty transaction error:", loyaltyError)
+            throw loyaltyError
+          }
+          
+          console.log("Loyalty transaction created successfully")
         }
       }
 
@@ -354,9 +493,16 @@ export function POSInterface() {
 
       // Refresh products to update stock
       fetchProducts()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error processing payment:", error)
-      toast.error("Error processing payment. Please try again.")
+      console.error("Error details:", {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+        stack: error?.stack
+      })
+      toast.error(`Error processing payment: ${error?.message || 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
@@ -393,6 +539,44 @@ export function POSInterface() {
     }).format(amount)
   }, [])
 
+  // Barcode scanner functionality
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Check if we're in a text input
+      const activeElement = document.activeElement as HTMLElement
+      if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+        return
+      }
+
+      // If Enter is pressed and we're not scanning, treat as barcode
+      if (event.key === 'Enter' && !isScanning) {
+        setIsScanning(true)
+        setTimeout(() => setIsScanning(false), 1000) // Reset after 1 second
+        
+        // Focus the barcode input
+        if (barcodeInputRef.current) {
+          barcodeInputRef.current.focus()
+        }
+      }
+    }
+
+    window.addEventListener('keypress', handleKeyPress)
+    return () => window.removeEventListener('keypress', handleKeyPress)
+  }, [isScanning])
+
+  const handleBarcodeScan = (barcode: string) => {
+    // Find product by barcode
+    const product = products.find(p => p.barcode === barcode)
+    
+    if (product) {
+      // Add to cart
+      addToCart(product)
+      toast.success(`Added ${product.name} to cart`)
+    } else {
+      toast.error(`Product with barcode ${barcode} not found`)
+    }
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full p-6">
       {/* Products Section */}
@@ -402,13 +586,37 @@ export function POSInterface() {
             <CardTitle>Products</CardTitle>
             {/* Search and Filter */}
             <div className="space-y-3">
+              {/* Barcode Scanner Input */}
               <div className="flex gap-2">
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
-                    placeholder="Search products, brands, HSN codes..."
+                    ref={barcodeInputRef}
+                    placeholder="Scan barcode or search products..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setSearchTerm(value)
+                      
+                      // Auto-detect barcode scan (if it ends with Enter)
+                      if (value.endsWith('\n') || value.endsWith('\r')) {
+                        const barcode = value.trim()
+                        handleBarcodeScan(barcode)
+                        setSearchTerm('') // Clear search after scan
+                        e.target.value = '' // Remove the Enter character
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        const barcode = e.currentTarget.value.trim()
+                        if (barcode) {
+                          handleBarcodeScan(barcode)
+                          setSearchTerm('')
+                          e.currentTarget.value = ''
+                        }
+                      }
+                    }}
                     className="pl-10"
                   />
                 </div>

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { supabase } from "@/lib/supabase-client"
-import { TrendingUp, IndianRupee, ShoppingCart, Calendar, Download, Search, Eye, Receipt } from "lucide-react"
+import { TrendingUp, IndianRupee, ShoppingCart, Calendar, Search, Eye, Receipt } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { TransactionDetailsModal } from "@/components/sales/transaction-details-modal"
 
@@ -324,16 +324,7 @@ export default function SalesPage() {
           <h1 className="text-3xl font-bold">Sales Overview</h1>
           <p className="text-muted-foreground">Track your sales performance and analytics</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="bg-transparent">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-          <Button className="bg-gradient-to-r from-blue-600 to-purple-600">
-            <Receipt className="h-4 w-4 mr-2" />
-            Generate Report
-          </Button>
-        </div>
+        {/* Export and Report buttons removed - moved to dedicated Reports page */}
       </motion.div>
 
       {/* Stats Cards */}
