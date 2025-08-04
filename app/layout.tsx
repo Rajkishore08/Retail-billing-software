@@ -11,12 +11,6 @@ export const metadata: Metadata = {
   description: "Point of Sale system for National Mini Mart",
   keywords: ["POS", "retail", "billing", "inventory"],
   authors: [{ name: "National Mini Mart" }],
-  // Cache control headers
-  other: {
-    "Cache-Control": "no-cache, no-store, must-revalidate",
-    "Pragma": "no-cache",
-    "Expires": "0"
-  }
 }
 
 export const viewport: Viewport = {
@@ -33,37 +27,31 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Cache busting meta tags */}
-        <meta httpEquiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-        <meta httpEquiv="Pragma" content="no-cache" />
-        <meta httpEquiv="Expires" content="0" />
-        {/* Version-based cache clearing */}
+        {/* Smart cache management */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                const currentVersion = '1.0.0';
+                const currentVersion = '1.0.1';
                 const storedVersion = localStorage.getItem('app_version');
                 
-                if (storedVersion !== currentVersion) {
-                  // Clear all caches
+                // Only clear cache on version change, not every load
+                if (storedVersion && storedVersion !== currentVersion) {
+                  // Clear caches only when version changes
                   if ('caches' in window) {
                     caches.keys().then(names => {
                       names.forEach(name => caches.delete(name));
                     });
                   }
                   
-                  // Clear storage
-                  localStorage.clear();
-                  sessionStorage.clear();
-                  
                   // Store new version
                   localStorage.setItem('app_version', currentVersion);
                   
-                  // Force reload if version changed
-                  if (storedVersion) {
-                    window.location.reload(true);
-                  }
+                  // Force reload only on version change
+                  window.location.reload(true);
+                } else if (!storedVersion) {
+                  // First time visit - just store version
+                  localStorage.setItem('app_version', currentVersion);
                 }
               })();
             `

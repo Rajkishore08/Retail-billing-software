@@ -8,25 +8,24 @@
 const fs = require('fs');
 const path = require('path');
 
-console.log('🧹 Clearing cache and build files...');
+console.log('🧹 Clearing Next.js cache...');
 
-// Clear Next.js cache
-const nextCache = path.join(process.cwd(), '.next');
-if (fs.existsSync(nextCache)) {
-  fs.rmSync(nextCache, { recursive: true, force: true });
-  console.log('✅ Cleared .next cache');
-}
+// Clear Next.js cache directories
+const cacheDirs = [
+  '.next',
+  'node_modules/.cache',
+  '.turbo'
+];
 
-// Clear node_modules cache
-const nodeModulesCache = path.join(process.cwd(), 'node_modules/.cache');
-if (fs.existsSync(nodeModulesCache)) {
-  fs.rmSync(nodeModulesCache, { recursive: true, force: true });
-  console.log('✅ Cleared node_modules cache');
-}
+cacheDirs.forEach(dir => {
+  if (fs.existsSync(dir)) {
+    console.log(`Removing ${dir}...`);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 
-console.log('\n🚀 Cache cleared! Now run:');
-console.log('npm run dev');
-console.log('\n💡 For browser cache issues:');
-console.log('1. Press Ctrl+Shift+R (hard refresh)');
-console.log('2. Or open Developer Tools → Network → Disable cache');
-console.log('3. Or use incognito/private mode'); 
+console.log('✅ Cache cleared successfully!');
+console.log('💡 Tip: If you still experience slow loading, try:');
+console.log('   1. Hard refresh (Ctrl+F5 or Cmd+Shift+R)');
+console.log('   2. Clear browser cache in browser settings');
+console.log('   3. Try incognito mode to test'); 
