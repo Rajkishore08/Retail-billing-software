@@ -11,6 +11,11 @@ export const metadata: Metadata = {
   description: "Point of Sale system for National Mini Mart",
   keywords: ["POS", "retail", "billing", "inventory"],
   authors: [{ name: "National Mini Mart" }],
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/placeholder-logo.png',
+  },
 }
 
 export const viewport: Viewport = {
@@ -27,6 +32,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Favicon */}
+        <link rel="icon" type="image/x-icon" href="/placeholder-logo.png" />
+        <link rel="shortcut icon" type="image/x-icon" href="/placeholder-logo.png" />
+        <link rel="apple-touch-icon" href="/placeholder-logo.png" />
+        
         {/* Smart cache management */}
         <script
           dangerouslySetInnerHTML={{
