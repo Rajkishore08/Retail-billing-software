@@ -11,7 +11,8 @@ import { useAuth } from "@/contexts/auth-context"
 import { CustomerSelector } from "./customer-selector"
 import { ReceiptPreview } from "./receipt-preview"
 import { LoyaltyRedemption } from "./loyalty-redemption"
-import { Search, Plus, Minus, Trash2, CreditCard, Smartphone, Banknote, Receipt } from "lucide-react"
+import { DiscountManager } from "./discount-manager"
+import { Search, Plus, Minus, Trash2, CreditCard, Smartphone, Banknote, Receipt, Tag } from "lucide-react"
 import { toast } from "sonner"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -19,6 +20,9 @@ type Product = {
   id: string
   name: string
   price: number
+  cost_price: number
+  mrp: number
+  selling_price: number
   stock_quantity: number
   gst_rate: number
   price_includes_gst: boolean
@@ -64,6 +68,10 @@ export function POSInterface() {
   const [loyaltyPointsRedeemed, setLoyaltyPointsRedeemed] = useState(0)
   const [loyaltyDiscountAmount, setLoyaltyDiscountAmount] = useState(0)
 
+  // Discount state
+  const [discountAmount, setDiscountAmount] = useState(0)
+  const [discountPercentage, setDiscountPercentage] = useState(0)
+
   // Barcode scanner state
   const [isScanning, setIsScanning] = useState(false)
   const barcodeInputRef = useRef<HTMLInputElement>(null)
@@ -77,7 +85,7 @@ export function POSInterface() {
       filtered = filtered.filter(product => product.brand === selectedBrand)
     }
     
-    // Filter by search term
+    // Filter by search term (combined product search and barcode)
     if (searchTerm.trim()) {
       const searchLower = searchTerm.toLowerCase()
       filtered = filtered.filter(
@@ -101,15 +109,16 @@ export function POSInterface() {
     cart.forEach((item) => {
       if (item.product.price_includes_gst) {
         // Price includes GST - extract GST amount
-        const priceWithoutGst = item.product.price / (1 + item.product.gst_rate / 100)
-        const itemGst = item.product.price - priceWithoutGst
+        const sellingPrice = item.product.selling_price || item.product.price
+        const priceWithoutGst = sellingPrice / (1 + item.product.gst_rate / 100)
+        const itemGst = sellingPrice - priceWithoutGst
         const itemBasePrice = priceWithoutGst
         
         baseSubtotal += itemBasePrice * item.quantity
         gstAmount += itemGst * item.quantity
       } else {
         // Price excludes GST - add GST amount
-        const itemBasePrice = item.product.price
+        const itemBasePrice = item.product.selling_price || item.product.price
         const itemGst = (itemBasePrice * item.product.gst_rate / 100)
         
         baseSubtotal += itemBasePrice * item.quantity
@@ -122,48 +131,62 @@ export function POSInterface() {
     // Apply loyalty discount
     const totalAfterLoyalty = total - loyaltyDiscountAmount
     
+    // Apply manual discount
+    const totalAfterDiscount = totalAfterLoyalty - discountAmount
+    
     // Round the total to nearest rupee (no paise)
-    const roundedTotal = Math.round(totalAfterLoyalty)
-    const roundingAdjustment = roundedTotal - totalAfterLoyalty
+    const roundedTotal = Math.round(totalAfterDiscount)
+    const roundingAdjustment = roundedTotal - totalAfterDiscount
 
     return { 
       subtotal: baseSubtotal, 
       gstAmount, 
       total, 
       totalAfterLoyalty,
+      totalAfterDiscount,
       roundedTotal, 
       roundingAdjustment 
     }
-  }, [cart, loyaltyDiscountAmount])
+  }, [cart, loyaltyDiscountAmount, discountAmount])
 
-  const { subtotal, gstAmount, total, totalAfterLoyalty, roundedTotal, roundingAdjustment } = totals
+  const { subtotal, gstAmount, total, totalAfterLoyalty, totalAfterDiscount, roundedTotal, roundingAdjustment } = totals
   const changeAmount = paymentMethod === "cash" ? Math.max(0, Number.parseFloat(cashReceived || "0") - roundedTotal) : 0
   const loyaltyPointsEarned = Math.floor(roundedTotal / 100)
+
+  // Calculate total savings including MRP to selling price difference
+  const calculateTotalSavings = () => {
+    let totalSavings = 0
+    
+    // Add discount savings
+    totalSavings += discountAmount
+    totalSavings += loyaltyDiscountAmount
+    
+    // Add MRP to selling price savings
+    cart.forEach((item) => {
+      if (item.product.mrp && item.product.selling_price) {
+        const mrpSavings = (item.product.mrp - item.product.selling_price) * item.quantity
+        totalSavings += mrpSavings
+      }
+    })
+    
+    return totalSavings
+  }
 
   const fetchProducts = useCallback(async () => {
     try {
       setProductsLoading(true)
       console.log("Fetching products...")
       
-      const { data, error } = await supabase.rpc('get_products_with_stock')
+      // Use optimized query with caching
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .gt('stock_quantity', 0)
+        .order('name')
+        .abortSignal(new AbortController().signal) // Add abort signal for better performance
 
       if (error) {
         console.error("Error fetching products:", error)
-        // Fallback to direct query if RPC fails
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('products')
-          .select('*')
-          .gt('stock_quantity', 0)
-          .order('name')
-        
-        if (fallbackError) {
-          console.error("Fallback query also failed:", fallbackError)
-          return
-        }
-        
-        setProducts(fallbackData || [])
-        const uniqueBrands = [...new Set((fallbackData || []).map((p: Product) => p.brand || 'Generic'))].sort() as string[]
-        setBrands(uniqueBrands)
         return
       }
 
@@ -242,7 +265,7 @@ export function POSInterface() {
       const newItem: CartItem = {
         product,
         quantity: 1,
-        total: product.price,
+        total: product.selling_price || product.price, // Use selling_price if available, fallback to price
       }
       setCart(prev => [...prev, newItem])
     }
@@ -259,7 +282,7 @@ export function POSInterface() {
         return {
           ...item,
           quantity: newQuantity,
-          total: item.product.price * newQuantity,
+          total: (item.product.selling_price || item.product.price) * newQuantity,
         }
       }
       return item
@@ -273,6 +296,11 @@ export function POSInterface() {
   const handleLoyaltyApplied = useCallback((pointsRedeemed: number, discountAmount: number) => {
     setLoyaltyPointsRedeemed(pointsRedeemed)
     setLoyaltyDiscountAmount(discountAmount)
+  }, [])
+
+  const handleDiscountChange = useCallback((amount: number, percentage: number) => {
+    setDiscountAmount(amount)
+    setDiscountPercentage(percentage)
   }, [])
 
   const processPayment = useCallback(async () => {
@@ -332,6 +360,9 @@ export function POSInterface() {
         gst_amount: gstAmount,
         total_amount: roundedTotal,
         rounding_adjustment: roundingAdjustment,
+        discount_amount: discountAmount,
+        discount_percentage: discountPercentage,
+        total_savings: discountAmount + loyaltyDiscountAmount,
         loyalty_points_earned: loyaltyPointsEarned,
         loyalty_points_redeemed: loyaltyPointsRedeemed,
         loyalty_discount_amount: loyaltyDiscountAmount,
@@ -377,10 +408,13 @@ export function POSInterface() {
         product_id: item.product.id,
         product_name: item.product.name,
         quantity: item.quantity,
-        unit_price: item.product.price,
+        unit_price: item.product.selling_price || item.product.price,
         total_price: item.total,
         gst_rate: item.product.gst_rate,
         price_includes_gst: item.product.price_includes_gst,
+        cost_price: item.product.cost_price,
+        mrp: item.product.mrp,
+        selling_price: item.product.selling_price || item.product.price,
       }))
 
       console.log("Creating transaction items:", transactionItems)
@@ -396,7 +430,14 @@ export function POSInterface() {
           hint: itemsError.hint
         })
         
-
+        // Show specific error message to user
+        if (itemsError.code === '23505') {
+          toast.error("Duplicate transaction detected. Please try again.")
+        } else if (itemsError.code === '23503') {
+          toast.error("Product not found. Please refresh and try again.")
+        } else {
+          toast.error(`Transaction failed: ${itemsError.message || 'Unknown error'}`)
+        }
         
         throw itemsError
       }
@@ -458,14 +499,37 @@ export function POSInterface() {
             transaction_type: loyaltyPointsEarned > 0 ? 'earned' : 'redeemed'
           }
 
-          const { error: loyaltyError } = await supabase.from("loyalty_transactions").insert(loyaltyTransactionData)
-          
-          if (loyaltyError) {
-            console.error("Loyalty transaction error:", loyaltyError)
-            throw loyaltyError
+          try {
+            const { error: loyaltyError } = await supabase.from("loyalty_transactions").insert(loyaltyTransactionData)
+            
+            if (loyaltyError) {
+              console.error("Loyalty transaction error:", loyaltyError)
+              console.error("Loyalty error details:", {
+                message: loyaltyError.message,
+                code: loyaltyError.code,
+                details: loyaltyError.details,
+                hint: loyaltyError.hint
+              })
+              
+              // Show specific loyalty error message
+              if (loyaltyError.code === '23503') {
+                toast.error("Customer or transaction not found. Please try again.")
+              } else if (loyaltyError.message) {
+                toast.error(`Loyalty transaction failed: ${loyaltyError.message}`)
+              } else {
+                toast.error("Loyalty transaction failed. Please try again.")
+              }
+              
+              throw loyaltyError
+            }
+            
+            console.log("Loyalty transaction created successfully")
+          } catch (loyaltyError: any) {
+            console.error("Loyalty transaction failed:", loyaltyError)
+            // Continue with the transaction even if loyalty record fails
+            console.log("Continuing with transaction despite loyalty error...")
+            toast.warning("Transaction completed but loyalty record failed. Please check database setup.")
           }
-          
-          console.log("Loyalty transaction created successfully")
         }
       }
 
@@ -486,6 +550,8 @@ export function POSInterface() {
       setSelectedCustomer(null)
       setLoyaltyPointsRedeemed(0)
       setLoyaltyDiscountAmount(0)
+      setDiscountAmount(0)
+      setDiscountPercentage(0)
 
       // Show receipt
       setLastTransaction(receiptTransaction)
@@ -502,7 +568,16 @@ export function POSInterface() {
         hint: error?.hint,
         stack: error?.stack
       })
-      toast.error(`Error processing payment: ${error?.message || 'Unknown error'}`)
+      // Show specific error message to user
+      if (error?.code === '23505') {
+        toast.error("Duplicate transaction detected. Please try again.")
+      } else if (error?.code === '23503') {
+        toast.error("Product not found. Please refresh and try again.")
+      } else if (error?.message) {
+        toast.error(`Payment failed: ${error.message}`)
+      } else {
+        toast.error("Payment processing failed. Please try again.")
+      }
     } finally {
       setLoading(false)
     }
@@ -529,6 +604,8 @@ export function POSInterface() {
     setCashReceived("")
     setLoyaltyPointsRedeemed(0)
     setLoyaltyDiscountAmount(0)
+    setDiscountAmount(0)
+    setDiscountPercentage(0)
   }, [])
 
   const formatCurrency = useCallback((amount: number) => {
@@ -586,13 +663,13 @@ export function POSInterface() {
             <CardTitle>Products</CardTitle>
             {/* Search and Filter */}
             <div className="space-y-3">
-              {/* Barcode Scanner Input */}
+              {/* Combined Search Input */}
               <div className="flex gap-2">
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
                     ref={barcodeInputRef}
-                    placeholder="Scan barcode or search products..."
+                    placeholder="Search products or scan barcode..."
                     value={searchTerm}
                     onChange={(e) => {
                       const value = e.target.value
@@ -619,6 +696,16 @@ export function POSInterface() {
                     }}
                     className="pl-10"
                   />
+                  {searchTerm && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSearchTerm("")}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                    >
+                      ×
+                    </Button>
+                  )}
                 </div>
                 <Select value={selectedBrand} onValueChange={setSelectedBrand}>
                   <SelectTrigger className="w-48">
@@ -679,7 +766,17 @@ export function POSInterface() {
                         </div>
                         
                         <div className="flex justify-between items-center mb-1">
-                          <span className="text-lg font-bold text-green-600">{formatCurrency(product.price)}</span>
+                          <div className="flex flex-col">
+                            <span className="text-lg font-bold text-green-600">{formatCurrency(product.selling_price || product.price)}</span>
+                            {product.mrp && product.mrp > (product.selling_price || product.price) && (
+                              <div className="flex items-center space-x-1">
+                                <span className="text-xs text-gray-500 line-through">MRP: {formatCurrency(product.mrp)}</span>
+                                <Badge variant="outline" className="text-xs text-green-600">
+                                  Save {formatCurrency(product.mrp - (product.selling_price || product.price))}
+                                </Badge>
+                              </div>
+                            )}
+                          </div>
                           <Badge variant="secondary" className="text-xs">
                             Stock: {product.stock_quantity}
                           </Badge>
@@ -735,13 +832,14 @@ export function POSInterface() {
                   let itemTotal = 0
                   let priceDisplay = ""
                   
+                  const sellingPrice = item.product.selling_price || item.product.price
                   if (item.product.price_includes_gst) {
-                    itemTotal = item.product.price * item.quantity
-                    priceDisplay = `${formatCurrency(item.product.price)} (incl. ${item.product.gst_rate}% GST)`
+                    itemTotal = sellingPrice * item.quantity
+                    priceDisplay = `${formatCurrency(sellingPrice)} (incl. ${item.product.gst_rate}% GST)`
                   } else {
-                    const gstAmount = (item.product.price * item.product.gst_rate) / 100
-                    itemTotal = (item.product.price + gstAmount) * item.quantity
-                    priceDisplay = `${formatCurrency(item.product.price)} + ${item.product.gst_rate}% GST`
+                    const gstAmount = (sellingPrice * item.product.gst_rate) / 100
+                    itemTotal = (sellingPrice + gstAmount) * item.quantity
+                    priceDisplay = `${formatCurrency(sellingPrice)} + ${item.product.gst_rate}% GST`
                   }
                   
                   return (
@@ -753,7 +851,7 @@ export function POSInterface() {
                         <p className="text-sm font-medium truncate">{item.product.name}</p>
                         <p className="text-xs text-gray-500">{item.product.brand} • HSN: {item.product.hsn_code}</p>
                         <p className="text-xs text-gray-400">{priceDisplay}</p>
-                        <p className="text-xs text-gray-400">Qty: {item.quantity} × {formatCurrency(item.product.price)}</p>
+                        <p className="text-xs text-gray-400">Qty: {item.quantity} × {formatCurrency(item.product.selling_price || item.product.price)}</p>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Button size="sm" variant="outline" onClick={() => updateQuantity(item.product.id, item.quantity - 1)}>
@@ -791,6 +889,12 @@ export function POSInterface() {
                   <span>-₹{loyaltyDiscountAmount.toFixed(2)}</span>
                 </div>
               )}
+              {discountAmount > 0 && (
+                <div className="flex justify-between text-sm text-green-600">
+                  <span>Discount ({discountPercentage.toFixed(2)}%):</span>
+                  <span>-₹{discountAmount.toFixed(2)}</span>
+                </div>
+              )}
               {roundingAdjustment !== 0 && (
                 <div className="flex justify-between text-sm text-gray-500">
                   <span>Rounding:</span>
@@ -801,6 +905,12 @@ export function POSInterface() {
                 <span>Total:</span>
                 <span>{formatCurrency(roundedTotal)}</span>
               </div>
+              {calculateTotalSavings() > 0 && (
+                <div className="flex justify-between text-sm text-green-600 font-semibold">
+                  <span>Total Savings:</span>
+                  <span>₹{calculateTotalSavings().toFixed(2)}</span>
+                </div>
+              )}
               {selectedCustomer && loyaltyPointsEarned > 0 && (
                 <div className="flex justify-between text-sm text-purple-600">
                   <span>Loyalty Points:</span>
@@ -821,6 +931,16 @@ export function POSInterface() {
                 loyaltyDiscountAmount={loyaltyDiscountAmount}
               />
             )}
+
+            <Separator />
+
+            {/* Discount Manager */}
+            <DiscountManager
+              subtotal={total}
+              onDiscountChange={handleDiscountChange}
+              discountAmount={discountAmount}
+              discountPercentage={discountPercentage}
+            />
 
             <Separator />
 

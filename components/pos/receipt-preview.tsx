@@ -20,6 +20,27 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
     fetchStoreSettings()
   }, [])
 
+  // Calculate total savings including MRP to selling price difference
+  const calculateTotalSavings = () => {
+    let totalSavings = 0
+    
+    // Add discount savings
+    totalSavings += transaction.discount_amount || 0
+    totalSavings += transaction.loyalty_discount_amount || 0
+    
+    // Add MRP to selling price savings
+    if (transaction.items) {
+      transaction.items.forEach((item: any) => {
+        if (item.product.mrp && item.product.selling_price) {
+          const mrpSavings = (item.product.mrp - item.product.selling_price) * item.quantity
+          totalSavings += mrpSavings
+        }
+      })
+    }
+    
+    return totalSavings
+  }
+
   const fetchStoreSettings = async () => {
     const { data } = await supabase.from("settings").select("key, value")
 
@@ -90,18 +111,27 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
         
         <div class="line"></div>
         
+        <div class="row" style="font-weight: bold; margin-bottom: 5px;">
+          <span style="width: 40%;">Item</span>
+          <span style="width: 20%; text-align: center;">MRP</span>
+          <span style="width: 20%; text-align: center;">Qty</span>
+          <span style="width: 20%; text-align: right;">Amount</span>
+        </div>
         ${transaction.items.map((item: any) => `
           <div class="item">
             <div class="row">
-              <span class="item-name">${item.product.name}</span>
-              <span>${item.quantity} × ₹${item.product.price}</span>
+              <span style="width: 40%;">${item.product.name}</span>
+              <span style="width: 20%; text-align: center; font-size: 10px;">
+                ${item.product.mrp && item.product.mrp > (item.product.selling_price || item.product.price) ? 
+                  `<span>₹${item.product.mrp}</span>` : '-'}
+              </span>
+              <span style="width: 20%; text-align: center;">${item.quantity}</span>
+              <span style="width: 20%; text-align: right;">₹${((item.product.selling_price || item.product.price) * item.quantity).toFixed(2)}</span>
             </div>
-            <div class="item-details">
+            <div class="item-details" style="margin-left: 5px; font-size: 9px;">
               ${item.product.brand} • HSN: ${item.product.hsn_code} • ${item.product.gst_rate}% GST
-            </div>
-            <div class="row">
-              <span>Subtotal:</span>
-              <span>₹${(item.product.price * item.quantity).toFixed(2)}</span>
+              ${item.product.mrp && item.product.mrp > (item.product.selling_price || item.product.price) ? 
+                `<br><span style="color: #22c55e;">Save: ₹${(item.product.mrp - (item.product.selling_price || item.product.price)).toFixed(2)}</span>` : ''}
             </div>
           </div>
         `).join('')}
@@ -116,6 +146,12 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
           <span>GST Amount:</span>
           <span>₹${transaction.gst_amount.toFixed(2)}</span>
         </div>
+        ${transaction.discount_amount > 0 ? `
+        <div class="row">
+          <span>Discount (${transaction.discount_percentage?.toFixed(2) || '0'}%):</span>
+          <span>-₹${transaction.discount_amount.toFixed(2)}</span>
+        </div>
+        ` : ''}
         ${transaction.loyalty_discount_amount > 0 ? `
         <div class="row">
           <span>Loyalty Discount:</span>
@@ -128,6 +164,27 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
           <span>₹${transaction.rounding_adjustment.toFixed(2)}</span>
         </div>
         ` : ''}
+        ${(() => {
+          let totalSavings = 0
+          totalSavings += transaction.discount_amount || 0
+          totalSavings += transaction.loyalty_discount_amount || 0
+          
+          if (transaction.items) {
+            transaction.items.forEach((item: any) => {
+              if (item.product.mrp && item.product.selling_price) {
+                const mrpSavings = (item.product.mrp - item.product.selling_price) * item.quantity
+                totalSavings += mrpSavings
+              }
+            })
+          }
+          
+          return totalSavings > 0 ? `
+          <div class="row">
+            <span>Total Savings:</span>
+            <span>₹${totalSavings.toFixed(2)}</span>
+          </div>
+          ` : ''
+        })()}
         <div class="line"></div>
         <div class="row total">
           <span>TOTAL:</span>
@@ -205,25 +262,31 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
           ${transaction.customer ? `<div class="subtitle">Customer: ${transaction.customer.name}</div>` : ''}
         </div>
         
-        <table>
+        <table style="width: 100%;">
           <thead>
             <tr>
-              <th>Item</th>
-              <th>Qty</th>
-              <th>Price</th>
-              <th class="text-right">Total</th>
+              <th style="width: 35%; text-align: left;">Item</th>
+              <th style="width: 15%; text-align: center;">MRP</th>
+              <th style="width: 10%; text-align: center;">Qty</th>
+              <th style="width: 20%; text-align: center;">Price</th>
+              <th style="width: 20%; text-align: right;">Total</th>
             </tr>
           </thead>
           <tbody>
             ${transaction.items.map((item: any) => `
               <tr>
-                <td>
+                <td style="text-align: left;">
                   <div>${item.product.name}</div>
                   <div class="item-details">${item.product.brand} • HSN: ${item.product.hsn_code}</div>
                 </td>
-                <td>${item.quantity}</td>
-                <td>₹${item.product.price}</td>
-                <td class="text-right">₹${(item.product.price * item.quantity).toFixed(2)}</td>
+                <td style="text-align: center;">
+                  ${item.product.mrp && item.product.mrp > (item.product.selling_price || item.product.price) ? 
+                    `<span style="color: #333;">₹${item.product.mrp}</span>` : 
+                    `<span style="color: #999;">-</span>`}
+                </td>
+                <td style="text-align: center;">${item.quantity}</td>
+                <td style="text-align: center;">₹${item.product.selling_price || item.product.price}</td>
+                <td style="text-align: right;">₹${((item.product.selling_price || item.product.price) * item.quantity).toFixed(2)}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -238,6 +301,12 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
             <td>GST Amount:</td>
             <td class="text-right">₹${transaction.gst_amount.toFixed(2)}</td>
           </tr>
+          ${transaction.discount_amount > 0 ? `
+          <tr>
+            <td>Discount (${transaction.discount_percentage?.toFixed(2) || '0.00'}%):</td>
+            <td class="text-right">-₹${transaction.discount_amount.toFixed(2)}</td>
+          </tr>
+          ` : ''}
           ${transaction.loyalty_discount_amount > 0 ? `
           <tr>
             <td>Loyalty Discount:</td>
@@ -250,6 +319,27 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
             <td class="text-right">₹${transaction.rounding_adjustment.toFixed(2)}</td>
           </tr>
           ` : ''}
+          ${(() => {
+            let totalSavings = 0
+            totalSavings += transaction.discount_amount || 0
+            totalSavings += transaction.loyalty_discount_amount || 0
+            
+            if (transaction.items) {
+              transaction.items.forEach((item: any) => {
+                if (item.product.mrp && item.product.selling_price) {
+                  const mrpSavings = (item.product.mrp - item.product.selling_price) * item.quantity
+                  totalSavings += mrpSavings
+                }
+              })
+            }
+            
+            return totalSavings > 0 ? `
+            <tr>
+              <td><strong>Total Savings:</strong></td>
+              <td class="text-right"><strong>₹${totalSavings.toFixed(2)}</strong></td>
+            </tr>
+            ` : ''
+          })()}
           <tr style="border-top: 2px dashed #333; border-bottom: 2px dashed #333;">
             <td style="font-weight: bold; font-size: 18px; padding: 10px 8px;">TOTAL:</td>
             <td class="text-right" style="font-weight: bold; font-size: 18px; padding: 10px 8px;">₹${transaction.total_amount.toFixed(2)}</td>
@@ -332,19 +422,34 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
 
           <div className="border-t border-dashed border-gray-400 my-2"></div>
 
-          <div className="flex justify-between font-bold mb-1">
+          <div className="grid grid-cols-4 gap-2 font-bold mb-1">
             <span>Item</span>
-            <span>Qty</span>
-            <span>Amount</span>
+            <span className="text-center">MRP</span>
+            <span className="text-center">Qty</span>
+            <span className="text-right">Amount</span>
           </div>
 
           <div className="border-t border-dashed border-gray-400 my-2"></div>
 
           {transaction.items.map((item: any, index: number) => (
-            <div key={index} className="flex justify-between mb-1">
-              <span className="flex-1 truncate pr-2">{item.product.name}</span>
-              <span className="w-8 text-center">{item.quantity}</span>
-              <span className="w-16 text-right">₹{item.total.toFixed(2)}</span>
+            <div key={index} className="mb-1">
+              <div className="grid grid-cols-4 gap-2">
+                <span className="truncate">{item.product.name}</span>
+                <span className="text-center text-xs">
+                  {item.product.mrp && item.product.mrp > (item.product.selling_price || item.product.price) ? (
+                    <span>₹{item.product.mrp}</span>
+                  ) : (
+                    <span className="text-gray-400">-</span>
+                  )}
+                </span>
+                <span className="text-center">{item.quantity}</span>
+                <span className="text-right">₹{item.total.toFixed(2)}</span>
+              </div>
+              {item.product.mrp && item.product.mrp > (item.product.selling_price || item.product.price) && (
+                <div className="text-xs text-green-600 col-span-4 ml-2">
+                  Save: ₹{(item.product.mrp - (item.product.selling_price || item.product.price)).toFixed(2)}
+                </div>
+              )}
             </div>
           ))}
 
@@ -363,8 +468,14 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
               <span>SGST (9%):</span>
               <span>₹{(transaction.gst_amount / 2).toFixed(2)}</span>
             </div>
+            {transaction.discount_amount > 0 && (
+              <div className="flex justify-between text-sm text-green-600">
+                <span>Discount ({transaction.discount_percentage?.toFixed(2) || '0.00'}%):</span>
+                <span>-₹{transaction.discount_amount.toFixed(2)}</span>
+              </div>
+            )}
             {transaction.loyalty_discount_amount > 0 && (
-              <div className="flex justify-between text-sm text-gray-500">
+              <div className="flex justify-between text-sm text-green-600">
                 <span>Loyalty Discount:</span>
                 <span>-₹{transaction.loyalty_discount_amount.toFixed(2)}</span>
               </div>
@@ -373,6 +484,12 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
               <div className="flex justify-between text-sm text-gray-500">
                 <span>Rounding:</span>
                 <span>₹{transaction.rounding_adjustment.toFixed(2)}</span>
+              </div>
+            )}
+            {calculateTotalSavings() > 0 && (
+              <div className="flex justify-between text-sm text-green-600 font-semibold">
+                <span>Total Savings:</span>
+                <span>₹{calculateTotalSavings().toFixed(2)}</span>
               </div>
             )}
             <div className="border-t border-dashed border-black my-2"></div>

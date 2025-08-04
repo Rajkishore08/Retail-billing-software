@@ -17,7 +17,9 @@ type Product = {
   name: string
   stock_quantity: number
   min_stock_level: number
-  categories?: { name: string }[]
+  hsn_code: string
+  barcode?: string
+  brand: string
 }
 
 export default function InventoryPage() {
@@ -42,7 +44,9 @@ export default function InventoryPage() {
         name,
         stock_quantity,
         min_stock_level,
-        categories (name)
+        hsn_code,
+        barcode,
+        brand
       `)
       .order("name")
 
@@ -55,7 +59,12 @@ export default function InventoryPage() {
     setLoading(false)
   }
 
-  const filteredProducts = products.filter((product) => product.name.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredProducts = products.filter((product) => 
+    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.hsn_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (product.barcode && product.barcode.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    product.brand.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   const lowStockProducts = filteredProducts.filter((product) => product.stock_quantity <= product.min_stock_level)
 
@@ -184,7 +193,7 @@ export default function InventoryPage() {
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
         <Input
-          placeholder="Search products..."
+          placeholder="Search by product name, HSN code, barcode, or brand..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-10"
@@ -209,7 +218,7 @@ export default function InventoryPage() {
                 >
                   <div>
                     <p className="font-medium text-sm">{product.name}</p>
-                    <p className="text-xs text-muted-foreground">{product.categories?.[0]?.name || "Uncategorized"}</p>
+                    <p className="text-xs text-muted-foreground">Brand: {product.brand || "Generic"}</p>
                   </div>
                   <div className="text-right">
                     <Badge variant="destructive" className="text-xs">
@@ -251,10 +260,10 @@ export default function InventoryPage() {
                   <span className="text-sm text-muted-foreground">Min Level:</span>
                   <span className="text-sm">{product.min_stock_level} units</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Category:</span>
-                  <span className="text-sm">{product.categories?.[0]?.name || "Uncategorized"}</span>
-                </div>
+                                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Brand:</span>
+                    <span className="text-sm">{product.brand || "Generic"}</span>
+                  </div>
                 <Button
                   variant="outline"
                   size="sm"

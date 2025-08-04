@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Edit, Trash2, Package, Scan } from "lucide-react"
+import { Plus, Edit, Trash2, Package, Scan, Search } from "lucide-react"
 import { supabase } from "@/lib/supabase-client"
 import { toast } from "sonner"
 
@@ -16,6 +16,9 @@ type Product = {
   id: string
   name: string
   price: number
+  cost_price?: number
+  mrp?: number
+  selling_price?: number
   stock_quantity: number
   min_stock_level: number
   gst_rate: number
@@ -27,12 +30,16 @@ type Product = {
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [searchTerm, setSearchTerm] = useState("")
   const [formData, setFormData] = useState({
     name: "",
     price: "",
+    cost_price: "",
+    selling_price: "",
     stock_quantity: "",
     min_stock_level: "5",
     gst_rate: "18",
@@ -54,7 +61,7 @@ export default function ProductsPage() {
     try {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, price, stock_quantity, min_stock_level, gst_rate, price_includes_gst, hsn_code, brand, barcode")
+        .select("id, name, price, cost_price, mrp, selling_price, stock_quantity, min_stock_level, gst_rate, price_includes_gst, hsn_code, brand, barcode")
         .order("name")
 
       if (error) {
@@ -64,6 +71,7 @@ export default function ProductsPage() {
       }
 
       setProducts(data || [])
+      setFilteredProducts(data || [])
       
       // Extract unique brands for suggestions
       const uniqueBrands = [...new Set((data || []).map(p => p.brand).filter(b => b && b.trim()))].sort()
@@ -95,6 +103,28 @@ export default function ProductsPage() {
     setFormData(prev => ({ ...prev, brand }))
     setShowBrandSuggestions(false)
   }
+
+  // Search and filter products
+  const filterProducts = useCallback(() => {
+    if (!searchTerm.trim()) {
+      setFilteredProducts(products)
+      return
+    }
+
+    const searchLower = searchTerm.toLowerCase()
+    const filtered = products.filter(product => 
+      product.name.toLowerCase().includes(searchLower) ||
+      product.hsn_code.toLowerCase().includes(searchLower) ||
+      (product.barcode && product.barcode.toLowerCase().includes(searchLower)) ||
+      product.brand.toLowerCase().includes(searchLower)
+    )
+    setFilteredProducts(filtered)
+  }, [searchTerm, products])
+
+  // Update filtered products when search term or products change
+  useEffect(() => {
+    filterProducts()
+  }, [filterProducts])
 
   useEffect(() => {
     fetchProducts()
@@ -134,6 +164,8 @@ export default function ProductsPage() {
       setFormData({
         name: existingProduct.name,
         price: existingProduct.price.toString(),
+        cost_price: existingProduct.cost_price?.toString() || "",
+        selling_price: existingProduct.selling_price?.toString() || "",
         stock_quantity: existingProduct.stock_quantity.toString(),
         min_stock_level: existingProduct.min_stock_level.toString(),
         gst_rate: existingProduct.gst_rate.toString(),
@@ -154,7 +186,10 @@ export default function ProductsPage() {
 
     const productData = {
       name: formData.name,
-      price: Number.parseFloat(formData.price),
+      price: Number.parseFloat(formData.price), // This is MRP
+      cost_price: formData.cost_price ? Number.parseFloat(formData.cost_price) : null,
+      mrp: Number.parseFloat(formData.price), // MRP is the main price field
+      selling_price: formData.selling_price ? Number.parseFloat(formData.selling_price) : Number.parseFloat(formData.price), // Default to MRP if not set
       stock_quantity: Number.parseInt(formData.stock_quantity),
       min_stock_level: Number.parseInt(formData.min_stock_level),
       gst_rate: Number.parseFloat(formData.gst_rate),
@@ -165,20 +200,115 @@ export default function ProductsPage() {
     }
 
     try {
+      // Check for duplicate barcode, HSN code, and product name when adding new product
+      if (!editingProduct) {
+        // Check for duplicate product name
+        const { data: existingName, error: nameError } = await supabase
+          .from("products")
+          .select("id, name")
+          .eq("name", formData.name)
+          .single()
+
+        if (nameError && nameError.code !== 'PGRST116') { // PGRST116 = no rows returned
+          console.error("Name check error:", nameError)
+          toast.error(`Error checking product name: ${nameError.message}`)
+          return
+        }
+
+        if (existingName) {
+          toast.error(`Product with name "${formData.name}" already exists`)
+          return
+        }
+
+        // Check for duplicate barcode
+        if (formData.barcode) {
+          const { data: existingBarcode, error: barcodeError } = await supabase
+            .from("products")
+            .select("id, name")
+            .eq("barcode", formData.barcode)
+            .single()
+
+          if (barcodeError && barcodeError.code !== 'PGRST116') { // PGRST116 = no rows returned
+            console.error("Barcode check error:", barcodeError)
+            toast.error(`Error checking barcode: ${barcodeError.message}`)
+            return
+          }
+
+          if (existingBarcode) {
+            toast.error(`Product with barcode "${formData.barcode}" already exists: ${existingBarcode.name}`)
+            return
+          }
+        }
+
+        // Check for duplicate HSN code
+        const { data: existingHsn, error: hsnError } = await supabase
+          .from("products")
+          .select("id, name")
+          .eq("hsn_code", formData.hsn_code)
+          .single()
+
+        if (hsnError && hsnError.code !== 'PGRST116') { // PGRST116 = no rows returned
+          console.error("HSN check error:", hsnError)
+          toast.error(`Error checking HSN code: ${hsnError.message}`)
+          return
+        }
+
+        if (existingHsn) {
+          toast.error(`Product with HSN code "${formData.hsn_code}" already exists: ${existingHsn.name}`)
+          return
+        }
+      }
+
       if (editingProduct) {
         const { error } = await supabase
           .from("products")
           .update(productData)
           .eq("id", editingProduct.id)
 
-        if (error) throw error
+        if (error) {
+          console.error("Error updating product:", error)
+          
+          // Handle specific constraint errors
+          if (error.code === '23505') { // Unique constraint violation
+            if (error.message.includes('barcode')) {
+              toast.error(`Barcode "${formData.barcode}" already exists in another product`)
+            } else if (error.message.includes('hsn_code')) {
+              toast.error(`HSN code "${formData.hsn_code}" already exists in another product`)
+            } else if (error.message.includes('name')) {
+              toast.error(`Product name "${formData.name}" already exists in another product`)
+            } else {
+              toast.error(`Duplicate entry: ${error.message}`)
+            }
+          } else {
+            toast.error(`Failed to update product: ${error.message}`)
+          }
+          return
+        }
         toast.success("Product updated successfully!")
       } else {
         const { error } = await supabase
           .from("products")
           .insert(productData)
 
-        if (error) throw error
+        if (error) {
+          console.error("Error adding product:", error)
+          
+          // Handle specific constraint errors
+          if (error.code === '23505') { // Unique constraint violation
+            if (error.message.includes('barcode')) {
+              toast.error(`Barcode "${formData.barcode}" already exists in another product`)
+            } else if (error.message.includes('hsn_code')) {
+              toast.error(`HSN code "${formData.hsn_code}" already exists in another product`)
+            } else if (error.message.includes('name')) {
+              toast.error(`Product name "${formData.name}" already exists in another product`)
+            } else {
+              toast.error(`Duplicate entry: ${error.message}`)
+            }
+          } else {
+            toast.error(`Failed to add product: ${error.message}`)
+          }
+          return
+        }
         toast.success("Product added successfully!")
       }
 
@@ -186,9 +316,10 @@ export default function ProductsPage() {
       setEditingProduct(null)
       resetForm()
       fetchProducts()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving product:", error)
-      toast.error("Failed to save product")
+      const errorMessage = error?.message || error?.details || "Unknown error occurred"
+      toast.error(`Failed to save product: ${errorMessage}`)
     }
   }
 
@@ -197,6 +328,8 @@ export default function ProductsPage() {
     setFormData({
       name: product.name,
       price: product.price.toString(),
+      cost_price: product.cost_price?.toString() || "",
+      selling_price: product.selling_price?.toString() || "",
       stock_quantity: product.stock_quantity.toString(),
       min_stock_level: product.min_stock_level.toString(),
       gst_rate: product.gst_rate.toString(),
@@ -217,27 +350,40 @@ export default function ProductsPage() {
         .delete()
         .eq("id", productId)
 
-      if (error) throw error
+      if (error) {
+        console.error("Error deleting product:", error)
+        
+        // Handle specific constraint errors
+        if (error.code === '23503') { // Foreign key constraint violation
+          toast.error("Cannot delete product: It is being used in transactions")
+        } else {
+          toast.error(`Failed to delete product: ${error.message}`)
+        }
+        return
+      }
       toast.success("Product deleted successfully!")
       fetchProducts()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting product:", error)
-      toast.error("Failed to delete product")
+      const errorMessage = error?.message || error?.details || "Unknown error occurred"
+      toast.error(`Failed to delete product: ${errorMessage}`)
     }
   }
 
   const resetForm = () => {
-    setFormData({
-      name: "",
-      price: "",
-      stock_quantity: "",
-      min_stock_level: "5",
-      gst_rate: "18",
-      price_includes_gst: "true",
-      hsn_code: "",
-      brand: "",
-      barcode: "",
-    })
+          setFormData({
+        name: "",
+        price: "",
+        cost_price: "",
+        selling_price: "",
+        stock_quantity: "",
+        min_stock_level: "5",
+        gst_rate: "18",
+        price_includes_gst: "true",
+        hsn_code: "",
+        brand: "",
+        barcode: "",
+      })
   }
 
   const formatCurrency = (amount: number) => {
@@ -281,6 +427,35 @@ export default function ProductsPage() {
         </Button>
       </div>
 
+      {/* Search Bar */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2">
+            <Search className="h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search by product name, HSN code, barcode, or brand..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="flex-1"
+            />
+            {searchTerm && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSearchTerm("")}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+          {searchTerm && (
+            <p className="text-sm text-gray-500 mt-2">
+              Found {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Barcode Scanner Instructions */}
       <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200">
         <CardContent className="p-4">
@@ -295,7 +470,7 @@ export default function ProductsPage() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {products.map((product) => (
+        {filteredProducts.map((product) => (
           <Card key={product.id}>
             <CardHeader className="pb-3">
               <div className="flex justify-between items-start">
@@ -319,10 +494,18 @@ export default function ProductsPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-2xl font-bold text-green-600">
-                  {formatCurrency(product.price)}
-                </span>
+                             <div className="flex justify-between items-center mb-1">
+                 <div className="flex flex-col">
+                   <span className="text-lg font-bold text-green-600">{formatCurrency(product.selling_price || product.price)}</span>
+                   {product.mrp && product.mrp > (product.selling_price || product.price) && (
+                     <div className="flex items-center space-x-1">
+                       <span className="text-xs text-gray-500 line-through">MRP: {formatCurrency(product.mrp)}</span>
+                       <Badge variant="outline" className="text-xs text-green-600">
+                         Save {formatCurrency(product.mrp - (product.selling_price || product.price))}
+                       </Badge>
+                     </div>
+                   )}
+                 </div>
                 <Badge variant={product.stock_quantity > product.min_stock_level ? "default" : "destructive"}>
                   Stock: {product.stock_quantity}
                 </Badge>
@@ -334,6 +517,8 @@ export default function ProductsPage() {
                 <p>GST Rate: {product.gst_rate}%</p>
                 <p>Price Includes GST: {product.price_includes_gst ? "Yes" : "No"}</p>
                 <p>Min Level: {product.min_stock_level}</p>
+                {product.cost_price && <p>Cost: {formatCurrency(product.cost_price)}</p>}
+                {product.selling_price && <p>Selling: {formatCurrency(product.selling_price)}</p>}
                 {product.barcode && <p>Barcode: {product.barcode}</p>}
               </div>
             </CardContent>
@@ -363,9 +548,9 @@ export default function ProductsPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+                                     <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="price">Price (₹)</Label>
+                <Label htmlFor="price">MRP (₹)</Label>
                 <Input
                   id="price"
                   type="number"
@@ -383,6 +568,31 @@ export default function ProductsPage() {
                   value={formData.stock_quantity}
                   onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
                   required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="cost_price">Cost Price (₹)</Label>
+                <Input
+                  id="cost_price"
+                  type="number"
+                  step="0.01"
+                  value={formData.cost_price}
+                  onChange={(e) => setFormData({ ...formData, cost_price: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="selling_price">Selling Price (₹)</Label>
+                <Input
+                  id="selling_price"
+                  type="number"
+                  step="0.01"
+                  value={formData.selling_price}
+                  onChange={(e) => setFormData({ ...formData, selling_price: e.target.value })}
+                  placeholder="0.00"
                 />
               </div>
             </div>

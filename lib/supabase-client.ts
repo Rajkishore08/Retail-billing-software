@@ -198,6 +198,9 @@ export type Database = {
           id: string
           name: string
           price: number
+          cost_price: number | null
+          mrp: number | null
+          selling_price: number | null
           stock_quantity: number
           min_stock_level: number
           gst_rate: number
@@ -212,6 +215,9 @@ export type Database = {
           id?: string
           name: string
           price: number
+          cost_price?: number | null
+          mrp?: number | null
+          selling_price?: number | null
           stock_quantity: number
           min_stock_level?: number
           gst_rate?: number
@@ -226,6 +232,9 @@ export type Database = {
           id?: string
           name?: string
           price?: number
+          cost_price?: number | null
+          mrp?: number | null
+          selling_price?: number | null
           stock_quantity?: number
           min_stock_level?: number
           gst_rate?: number
@@ -280,6 +289,9 @@ export type Database = {
           subtotal: number
           gst_amount: number
           total_amount: number
+          discount_amount: number
+          discount_percentage: number
+          total_savings: number
           payment_method: string
           cash_received: number | null
           change_amount: number | null
@@ -302,6 +314,9 @@ export type Database = {
           subtotal: number
           gst_amount: number
           total_amount: number
+          discount_amount?: number
+          discount_percentage?: number
+          total_savings?: number
           payment_method: string
           cash_received?: number | null
           change_amount?: number | null
@@ -324,6 +339,9 @@ export type Database = {
           subtotal?: number
           gst_amount?: number
           total_amount?: number
+          discount_amount?: number
+          discount_percentage?: number
+          total_savings?: number
           payment_method?: string
           cash_received?: number | null
           change_amount?: number | null
@@ -347,6 +365,10 @@ export type Database = {
           total_price: number
           gst_rate: number
           price_includes_gst: boolean
+          item_discount_amount: number
+          item_discount_percentage: number
+          cost_price: number | null
+          mrp: number | null
           created_at: string
         }
         Insert: {
@@ -358,6 +380,10 @@ export type Database = {
           total_price: number
           gst_rate: number
           price_includes_gst: boolean
+          item_discount_amount?: number
+          item_discount_percentage?: number
+          cost_price?: number | null
+          mrp?: number | null
           created_at?: string
         }
         Update: {
@@ -369,6 +395,10 @@ export type Database = {
           total_price?: number
           gst_rate?: number
           price_includes_gst?: boolean
+          item_discount_amount?: number
+          item_discount_percentage?: number
+          cost_price?: number | null
+          mrp?: number | null
           created_at?: string
         }
       }
@@ -434,9 +464,11 @@ export type Database = {
     Views: {
       dashboard_stats: {
         Row: {
-          total_products: number | null
-          total_customers: number | null
-          monthly_revenue: number | null
+          total_transactions_today: number
+          total_sales_today: number
+          total_savings_today: number
+          unique_customers_today: number
+          avg_transaction_value_today: number
         }
       }
     }
@@ -472,6 +504,9 @@ export type Database = {
           id: string
           name: string
           price: number
+          cost_price: number | null
+          mrp: number | null
+          selling_price: number | null
           stock_quantity: number
           gst_rate: number
           price_includes_gst: boolean
@@ -479,7 +514,6 @@ export type Database = {
           brand: string | null
           barcode: string | null
           created_at: string
-          updated_at: string
         }[]
       }
       get_products_by_brand: {
@@ -522,6 +556,63 @@ export type Database = {
           total_customers: number
           db_size: string
         }[]
+      }
+      get_sales_analytics: {
+        Args: {
+          start_date?: string
+          end_date?: string
+        }
+        Returns: {
+          date_label: string
+          total_sales: number
+          total_transactions: number
+          total_savings: number
+          avg_transaction_value: number
+        }[]
+      }
+      get_top_selling_products: {
+        Args: {
+          limit_count?: number
+        }
+        Returns: {
+          product_name: string
+          total_quantity: number
+          total_revenue: number
+          avg_price: number
+        }[]
+      }
+      get_sales_by_category: {
+        Args: Record<string, never>
+        Returns: {
+          category_name: string
+          total_sales: number
+          total_items: number
+          avg_price: number
+        }[]
+      }
+      get_daily_sales_trend: {
+        Args: {
+          days_back?: number
+        }
+        Returns: {
+          date_label: string
+          sales_amount: number
+          transaction_count: number
+          savings_amount: number
+        }[]
+      }
+      calculate_product_savings: {
+        Args: {
+          product_id: string
+        }
+        Returns: {
+          savings_amount: number
+          savings_percentage: number
+        }[]
+      }
+      refresh_dashboard_stats: {
+        Args: Record<string, never>
+        Returns: undefined
       }
     }
   }

@@ -35,14 +35,32 @@ ANALYZE customers;
 ANALYZE transaction_items;
 
 -- 5. Create materialized view for dashboard stats (optional)
-CREATE MATERIALIZED VIEW IF NOT EXISTS dashboard_stats AS
+-- Drop existing materialized view if it exists to avoid conflicts
+DROP MATERIALIZED VIEW IF EXISTS dashboard_stats CASCADE;
+
+-- Note: total_savings_today is set to 0 initially since the column is added in script 18
+-- This will be updated when script 18 runs and adds the total_savings column
+CREATE MATERIALIZED VIEW dashboard_stats AS
 SELECT 
-  (SELECT COUNT(*) FROM products) as total_products,
-  (SELECT COUNT(*) FROM customers) as total_customers,
-  COALESCE(SUM(total_amount), 0) as monthly_revenue
-FROM transactions 
-WHERE created_at >= date_trunc('month', CURRENT_DATE)
-  AND status = 'completed';
+  COUNT(DISTINCT t.id) as total_transactions_today,
+  COALESCE(SUM(t.total_amount), 0) as total_sales_today,
+  0 as total_savings_today,
+  COUNT(DISTINCT t.customer_id) as unique_customers_today,
+  AVG(t.total_amount) as avg_transaction_value_today
+FROM transactions t
+WHERE t.created_at::DATE = CURRENT_DATE
+  AND t.status = 'completed';
+
+-- Create index on the materialized view
+CREATE INDEX IF NOT EXISTS idx_dashboard_stats ON dashboard_stats(total_transactions_today);
+
+-- Create function to refresh dashboard stats (will be updated after script 18)
+CREATE OR REPLACE FUNCTION refresh_dashboard_stats()
+RETURNS VOID AS $$
+BEGIN
+  REFRESH MATERIALIZED VIEW dashboard_stats;
+END;
+$$ LANGUAGE plpgsql;
 
 -- Refresh materialized view (run this periodically)
 -- REFRESH MATERIALIZED VIEW dashboard_stats;
@@ -73,4 +91,5 @@ $$;
 
 -- Grant permissions
 GRANT EXECUTE ON FUNCTION public.get_db_stats() TO authenticated;
+GRANT EXECUTE ON FUNCTION refresh_dashboard_stats() TO authenticated;
 GRANT SELECT ON dashboard_stats TO authenticated; 
