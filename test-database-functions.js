@@ -1,7 +1,26 @@
 // Test script to verify database functions are working
 const { createClient } = require('@supabase/supabase-js')
+const fs = require('fs')
+const path = require('path')
 
-// Replace with your actual Supabase URL and anon key
+// Load environment variables from .env.local
+try {
+  const envPath = path.resolve(process.cwd(), '.env.local')
+  if (fs.existsSync(envPath)) {
+    const envFile = fs.readFileSync(envPath, 'utf8')
+    envFile.split('\n').forEach(line => {
+      const parts = line.split('=')
+      if (parts.length >= 2) {
+        const key = parts[0].trim()
+        const val = parts.slice(1).join('=').trim().replace(/^['"]|['"]$/g, '')
+        if (key) process.env[key] = val
+      }
+    })
+  }
+} catch (err) {
+  console.warn('Warning: Could not parse .env.local file:', err.message)
+}
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 

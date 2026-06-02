@@ -28,30 +28,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchProfile(session.user.id)
-      } else {
-        setLoading(false)
+    let active = true
+
+    async function initAuth() {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (error) throw error
+
+        if (active) {
+          setUser(session?.user ?? null)
+          if (session?.user) {
+            await fetchProfile(session.user.id)
+          } else {
+            setLoading(false)
+          }
+        }
+      } catch (err) {
+        console.error("Error initializing auth session:", err)
+        if (active) {
+          // Clear localStorage on initialization failure to purge corrupt tokens
+          try {
+            localStorage.clear()
+          } catch (e) {}
+          setUser(null)
+          setProfile(null)
+          setLoading(false)
+        }
       }
-    })
+    }
+
+    initAuth()
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        await fetchProfile(session.user.id)
-      } else {
-        setProfile(null)
+      if (!active) return
+      try {
+        setUser(session?.user ?? null)
+        if (session?.user) {
+          await fetchProfile(session.user.id)
+        } else {
+          setProfile(null)
+          setLoading(false)
+        }
+      } catch (err) {
+        console.error("Auth state change error:", err)
         setLoading(false)
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      active = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const fetchProfile = async (userId: string) => {
