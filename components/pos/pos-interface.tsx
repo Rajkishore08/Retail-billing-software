@@ -12,9 +12,12 @@ import { CustomerSelector } from "./customer-selector"
 import { ReceiptPreview } from "./receipt-preview"
 import { LoyaltyRedemption } from "./loyalty-redemption"
 import { DiscountManager } from "./discount-manager"
-import { Search, Plus, Minus, Trash2, CreditCard, Smartphone, Banknote, Receipt, Tag, AlertTriangle } from "lucide-react"
+import { Search, Plus, Minus, Trash2, CreditCard, Smartphone, Banknote, Receipt, Tag, AlertTriangle, Barcode, Layers, Scan, CheckCircle2 } from "lucide-react"
 import { toast } from "sonner"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { getAllProductImages, placeholderClass, initials } from "@/lib/product-image-store"
 
 type Product = {
   id: string
@@ -29,6 +32,7 @@ type Product = {
   hsn_code: string
   brand: string
   barcode?: string
+  sale_unit?: string
 }
 
 type CartItem = {
@@ -76,6 +80,75 @@ export function POSInterface() {
   // Barcode scanner state
   const [isScanning, setIsScanning] = useState(false)
   const barcodeInputRef = useRef<HTMLInputElement>(null)
+
+  // Add product dialog state
+  const [showAddProductDialog, setShowAddProductDialog] = useState(false)
+  const [productImages, setProductImages] = useState<Record<string, string>>({})
+  const [newProductForm, setNewProductForm] = useState({
+    name: "",
+    price: "",
+    cost_price: "",
+    selling_price: "",
+    stock_quantity: "",
+    min_stock_level: "5",
+    gst_rate: "18",
+    price_includes_gst: true,
+    hsn_code: "",
+    brand: "",
+    barcode: "",
+    sale_unit: "pcs",
+  })
+
+  const handleAddNewProductSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const data = {
+      name: newProductForm.name,
+      price: parseFloat(newProductForm.price),
+      cost_price: newProductForm.cost_price ? parseFloat(newProductForm.cost_price) : null,
+      mrp: parseFloat(newProductForm.price),
+      selling_price: newProductForm.selling_price ? parseFloat(newProductForm.selling_price) : parseFloat(newProductForm.price),
+      stock_quantity: parseFloat(newProductForm.stock_quantity),
+      min_stock_level: parseFloat(newProductForm.min_stock_level),
+      gst_rate: parseFloat(newProductForm.gst_rate),
+      price_includes_gst: newProductForm.price_includes_gst,
+      hsn_code: newProductForm.hsn_code || "999999",
+      brand: newProductForm.brand || "Generic",
+      barcode: newProductForm.barcode || null,
+      sale_unit: newProductForm.sale_unit,
+    }
+
+    try {
+      const { data: dup } = await supabase.from("products").select("id,name").eq("name", newProductForm.name).single()
+      if (dup) { toast.error(`"${newProductForm.name}" already exists`); return }
+      if (newProductForm.barcode) {
+        const { data: dupB } = await supabase.from("products").select("id,name").eq("barcode", newProductForm.barcode).single()
+        if (dupB) { toast.error(`Barcode already used by "${dupB.name}"`); return }
+      }
+
+      const { data: inserted, error } = await supabase.from("products").insert(data).select("id").single()
+      if (error) { toast.error(`Failed to add product: ${error.message}`); return }
+
+      toast.success("Product added successfully!")
+      setShowAddProductDialog(false)
+      setNewProductForm({
+        name: "",
+        price: "",
+        cost_price: "",
+        selling_price: "",
+        stock_quantity: "",
+        min_stock_level: "5",
+        gst_rate: "18",
+        price_includes_gst: true,
+        hsn_code: "",
+        brand: "",
+        barcode: "",
+        sale_unit: "pcs",
+      })
+      fetchProducts()
+    } catch (err: any) {
+      toast.error(`Error: ${err?.message || "Unknown"}`)
+    }
+  }
 
   // Memoized filtered products for better performance
   const filteredProducts = useMemo(() => {
@@ -241,6 +314,7 @@ export function POSInterface() {
   useEffect(() => {
     fetchProducts()
     fetchLastBillNumber()
+    setProductImages(getAllProductImages())
   }, [fetchProducts, fetchLastBillNumber])
 
   const addToCart = useCallback((product: Product) => {
@@ -261,11 +335,6 @@ export function POSInterface() {
   }, [cart])
 
   const updateQuantity = useCallback((productId: string, newQuantity: number) => {
-    if (newQuantity <= 0) {
-      removeFromCart(productId)
-      return
-    }
-
     setCart(prev => prev.map((item) => {
       if (item.product.id === productId) {
         return {
@@ -568,7 +637,12 @@ export function POSInterface() {
       <div className="lg:col-span-2 space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>Products</CardTitle>
+            <div className="flex justify-between items-center mb-2">
+              <CardTitle>Products</CardTitle>
+              <Button onClick={() => setShowAddProductDialog(true)} size="sm" className="gradient-primary text-white border-0 shadow-md">
+                <Plus className="h-4 w-4 mr-1" /> Add Product
+              </Button>
+            </div>
             {/* Search and Filter */}
             <div className="space-y-3">
               {/* Combined Search Input */}
@@ -602,8 +676,15 @@ export function POSInterface() {
                         }
                       }
                     }}
-                    className="pl-10"
+                    className="pl-10 pr-24"
                   />
+                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1.5">
+                    <span className="flex h-2 w-2 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-500 tracking-wider">SCANNER READY</span>
+                  </div>
                   {searchTerm && (
                     <Button
                       variant="outline"
@@ -659,28 +740,112 @@ export function POSInterface() {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {filteredProducts.map((product) => {
                   const price = product.selling_price || product.price
                   const cartItem = cart.find(i => i.product.id === product.id)
+                  const hasMrp = product.mrp && product.mrp > price
+                  const discount = hasMrp ? Math.round((1 - price / product.mrp!) * 100) : 0
+                  const isLowStock = product.stock_quantity <= 5
+                  const imageUrl = productImages[product.id]
+                  
                   return (
                     <Card
                       key={product.id}
-                      className={`cursor-pointer transition-all hover:shadow-lg hover:border-violet-500/40 relative ${cartItem ? 'border-violet-500/60 bg-violet-500/5' : ''}`}
+                      className={`cursor-pointer transition-all duration-200 hover:shadow-md border-border relative overflow-hidden flex flex-col justify-between ${
+                        cartItem 
+                          ? 'border-violet-500 bg-violet-500/5 dark:bg-violet-950/10 shadow-violet-500/10 shadow-md ring-1 ring-violet-500/30' 
+                          : 'hover:border-violet-500/40 bg-card hover:bg-accent/10'
+                      }`}
                       onClick={() => addToCart(product)}
                     >
-                      {cartItem && (
-                        <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-violet-600 text-white text-[10px] font-bold flex items-center justify-center shadow-lg z-10">
-                          {cartItem.quantity}
-                        </span>
-                      )}
-                      <CardContent className="p-3">
-                        <p className="text-sm font-semibold line-clamp-2 leading-tight mb-2">{product.name}</p>
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="text-base font-bold text-emerald-400">₹{price.toFixed(0)}</span>
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
-                            {product.stock_quantity}
-                          </Badge>
+                      <CardContent className="p-3 flex gap-3 h-full">
+                        {/* Thumbnail */}
+                        <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0 border border-border bg-muted flex items-center justify-center relative shadow-inner">
+                          {imageUrl ? (
+                            <img src={imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className={`w-full h-full ${placeholderClass(product.name)} flex items-center justify-center text-white font-bold text-lg`}>
+                              {initials(product.name)}
+                            </div>
+                          )}
+                          {discount > 0 && (
+                            <span className="absolute bottom-0 left-0 right-0 bg-rose-600 text-white text-[8px] font-bold text-center py-0.5 uppercase tracking-wider">
+                              -{discount}%
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Product info */}
+                        <div className="flex-1 min-w-0 flex flex-col justify-between">
+                          <div className="space-y-0.5">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider truncate">
+                                {product.brand || 'Generic'}
+                              </span>
+                              {isLowStock && (
+                                <span className="text-[9px] font-extrabold text-amber-500 flex items-center gap-0.5">
+                                  ⚠️ LOW STOCK ({product.stock_quantity})
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs font-bold truncate leading-snug tracking-tight" title={product.name}>
+                              {product.name}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-1.5 mt-1.5">
+                            <div className="flex items-baseline gap-1">
+                              <span className="text-sm font-black text-emerald-500 font-numeric">
+                                ₹{price.toFixed(0)}
+                              </span>
+                              {hasMrp && (
+                                <span className="text-[10px] text-muted-foreground line-through font-numeric">
+                                  ₹{product.mrp!.toFixed(0)}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Inline Cart Controls */}
+                            {cartItem ? (
+                              cartItem.product.sale_unit === 'kg' ? (
+                                <div className="flex items-center border rounded-lg px-1 bg-background/80 shadow-sm" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="number"
+                                    step="0.001"
+                                    value={cartItem.quantity}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value) || 0
+                                      updateQuantity(product.id, val)
+                                    }}
+                                    className="h-5 w-12 border-0 bg-transparent text-center font-bold text-[10px] focus:outline-none"
+                                  />
+                                  <span className="text-[9px] font-semibold text-muted-foreground pr-0.5">kg</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1 bg-background/80 border border-border rounded-lg p-0.5 shadow-sm" onClick={(e) => e.stopPropagation()}>
+                                  <button 
+                                    className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                                    onClick={() => updateQuantity(product.id, cartItem.quantity - 1)}
+                                  >
+                                    <Minus className="h-2.5 w-2.5" />
+                                  </button>
+                                  <span className="text-xs font-bold w-5 text-center font-numeric">{cartItem.quantity}</span>
+                                  <button 
+                                    className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                                    disabled={cartItem.quantity >= product.stock_quantity}
+                                    onClick={() => updateQuantity(product.id, cartItem.quantity + 1)}
+                                  >
+                                    <Plus className="h-2.5 w-2.5" />
+                                  </button>
+                                </div>
+                              )
+                            ) : (
+                              <span className="text-[9px] text-muted-foreground font-semibold font-numeric">
+                                {product.sale_unit === 'kg' ? 'Price/kg' : `HSN: ${product.hsn_code || '9999'}`}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -743,15 +908,33 @@ export function POSInterface() {
                         <p className="text-xs text-gray-400">Qty: {item.quantity} × {formatCurrency(item.product.selling_price || item.product.price)}</p>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Button size="sm" variant="outline" onClick={() => updateQuantity(item.product.id, item.quantity - 1)}>
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <span className="text-sm font-medium w-8 text-center">{item.quantity}</span>
-                        <Button size="sm" variant="outline" onClick={() => updateQuantity(item.product.id, item.quantity + 1)} disabled={item.quantity >= item.product.stock_quantity}>
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => removeFromCart(item.product.id)}>
-                          <Trash2 className="h-3 w-3" />
+                        {item.product.sale_unit === 'kg' ? (
+                          <div className="flex items-center border rounded-md px-1.5 py-0.5 bg-background">
+                            <input
+                              type="number"
+                              step="0.001"
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0
+                                updateQuantity(item.product.id, val)
+                              }}
+                              className="h-6 w-16 p-0 border-0 focus:outline-none focus:ring-0 text-center font-bold text-xs"
+                            />
+                            <span className="text-[10px] font-bold text-muted-foreground pl-1">kg</span>
+                          </div>
+                        ) : (
+                          <>
+                            <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => updateQuantity(item.product.id, item.quantity - 1)}>
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <span className="text-sm font-medium w-8 text-center">{item.quantity}</span>
+                            <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => updateQuantity(item.product.id, item.quantity + 1)} disabled={item.quantity >= item.product.stock_quantity}>
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </>
+                        )}
+                        <Button size="sm" variant="destructive" className="h-7 w-7 p-0" onClick={() => removeFromCart(item.product.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </div>
@@ -954,6 +1137,189 @@ export function POSInterface() {
       {showReceipt && lastTransaction && (
         <ReceiptPreview transaction={lastTransaction} onClose={() => setShowReceipt(false)} />
       )}
+
+      {/* Add Product Dialog */}
+      <Dialog open={showAddProductDialog} onOpenChange={setShowAddProductDialog}>
+        <DialogContent className="max-w-md rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="pb-2 border-b border-border">
+            <div className="flex items-center gap-2">
+              <Plus className="h-5 w-5 text-violet-500" />
+              <DialogTitle className="text-lg font-bold">Add New Product</DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Add a new product to inventory. It will be instantly available for billing.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleAddNewProductSubmit} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="pos-new-name" className="text-xs font-semibold">Product Name *</Label>
+              <Input
+                id="pos-new-name"
+                value={newProductForm.name}
+                onChange={e => setNewProductForm({ ...newProductForm, name: e.target.value })}
+                placeholder="e.g. Tata Tea Gold 500g"
+                required
+                className="h-9 rounded-xl text-sm"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-mrp" className="text-xs font-semibold">MRP / Price (₹) *</Label>
+                <Input
+                  id="pos-new-mrp"
+                  type="number"
+                  step="0.01"
+                  value={newProductForm.price}
+                  onChange={e => setNewProductForm({ ...newProductForm, price: e.target.value })}
+                  placeholder="0.00"
+                  required
+                  className="h-9 rounded-xl text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-qty" className="text-xs font-semibold">Initial Stock Qty *</Label>
+                <Input
+                  id="pos-new-qty"
+                  type="number"
+                  value={newProductForm.stock_quantity}
+                  onChange={e => setNewProductForm({ ...newProductForm, stock_quantity: e.target.value })}
+                  placeholder="0"
+                  required
+                  className="h-9 rounded-xl text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-cost" className="text-xs font-semibold">Cost Price (₹)</Label>
+                <Input
+                  id="pos-new-cost"
+                  type="number"
+                  step="0.01"
+                  value={newProductForm.cost_price}
+                  onChange={e => setNewProductForm({ ...newProductForm, cost_price: e.target.value })}
+                  placeholder="0.00"
+                  className="h-9 rounded-xl text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-selling" className="text-xs font-semibold">Selling Price (₹)</Label>
+                <Input
+                  id="pos-new-selling"
+                  type="number"
+                  step="0.01"
+                  value={newProductForm.selling_price}
+                  onChange={e => setNewProductForm({ ...newProductForm, selling_price: e.target.value })}
+                  placeholder="0.00"
+                  className="h-9 rounded-xl text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-brand" className="text-xs font-semibold">Brand</Label>
+                <Input
+                  id="pos-new-brand"
+                  value={newProductForm.brand}
+                  onChange={e => setNewProductForm({ ...newProductForm, brand: e.target.value })}
+                  placeholder="Generic"
+                  className="h-9 rounded-xl text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-hsn" className="text-xs font-semibold">HSN Code</Label>
+                <Input
+                  id="pos-new-hsn"
+                  value={newProductForm.hsn_code}
+                  onChange={e => setNewProductForm({ ...newProductForm, hsn_code: e.target.value })}
+                  placeholder="999999"
+                  className="h-9 rounded-xl text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-unit" className="text-xs font-semibold">Sale Unit *</Label>
+                <Select
+                  value={newProductForm.sale_unit}
+                  onValueChange={val => setNewProductForm({ ...newProductForm, sale_unit: val })}
+                >
+                  <SelectTrigger id="pos-new-unit" className="h-9 rounded-xl text-sm">
+                    <SelectValue placeholder="pcs" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pcs">Pieces (pcs)</SelectItem>
+                    <SelectItem value="kg">Kilograms (kg)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-gst" className="text-xs font-semibold">GST Rate (%) *</Label>
+                <Input
+                  id="pos-new-gst"
+                  type="number"
+                  step="0.01"
+                  value={newProductForm.gst_rate}
+                  onChange={e => setNewProductForm({ ...newProductForm, gst_rate: e.target.value })}
+                  required
+                  className="h-9 rounded-xl text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-min-stock" className="text-xs font-semibold">Min Stock Level *</Label>
+                <Input
+                  id="pos-new-min-stock"
+                  type="number"
+                  value={newProductForm.min_stock_level}
+                  onChange={e => setNewProductForm({ ...newProductForm, min_stock_level: e.target.value })}
+                  required
+                  className="h-9 rounded-xl text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="pos-new-barcode" className="text-xs font-semibold">Barcode</Label>
+              <Input
+                id="pos-new-barcode"
+                value={newProductForm.barcode}
+                onChange={e => setNewProductForm({ ...newProductForm, barcode: e.target.value })}
+                placeholder="Scan or enter barcode (optional)"
+                className="h-9 rounded-xl text-sm"
+              />
+            </div>
+
+            <label className="flex items-center gap-2.5 p-3 rounded-xl border border-border cursor-pointer hover:bg-accent/40 transition-colors">
+              <input 
+                type="checkbox"
+                checked={newProductForm.price_includes_gst}
+                onChange={e => setNewProductForm({ ...newProductForm, price_includes_gst: e.target.checked })}
+                className="w-4 h-4 rounded accent-violet-600" 
+              />
+              <div className="flex-1">
+                <p className="text-xs font-semibold">Price includes GST</p>
+              </div>
+              {newProductForm.price_includes_gst && (
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+              )}
+            </label>
+
+            <div className="flex gap-2 pt-2 border-t border-border">
+              <Button type="submit" className="flex-1 h-10 rounded-xl gradient-primary border-0 font-semibold shadow-md text-white">
+                Create Product
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setShowAddProductDialog(false)} className="flex-1 h-10 rounded-xl font-semibold">
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

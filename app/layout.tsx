@@ -31,10 +31,10 @@ const lexend = Lexend({
 })
 
 export const metadata: Metadata = {
-  title: "National Mini Mart - POS System",
-  description: "Point of Sale system for National Mini Mart — GST billing, inventory & analytics.",
+  title: "Techno Bills - POS System",
+  description: "Point of Sale system for Techno Bills — GST billing, inventory & analytics.",
   keywords: ["POS", "retail", "billing", "inventory", "GST"],
-  authors: [{ name: "National Mini Mart" }],
+  authors: [{ name: "Techno Bills" }],
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",

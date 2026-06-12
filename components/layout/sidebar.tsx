@@ -7,25 +7,27 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Warehouse,
   TrendingUp, Settings, LogOut, Moon, Sun, ShoppingBag,
-  BarChart3, Sparkles, Zap,
+  BarChart3, Sparkles, Zap, UserCog, Shield,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
 
-const navigation = [
-  { name: "Dashboard",      href: "/dashboard", icon: LayoutDashboard, gradient: "from-violet-500 to-purple-700",  glow: "rgba(124,58,237,0.35)"  },
-  { name: "Products",       href: "/products",  icon: Package,          gradient: "from-sky-500 to-blue-700",      glow: "rgba(2,132,199,0.35)"   },
-  { name: "POS Billing",    href: "/pos",        icon: ShoppingCart,     gradient: "from-emerald-500 to-green-700", glow: "rgba(5,150,105,0.35)"   },
-  { name: "Customers",      href: "/customers",  icon: Users,            gradient: "from-amber-500 to-orange-600",  glow: "rgba(217,119,6,0.35)"   },
-  { name: "Inventory",      href: "/inventory",  icon: Warehouse,        gradient: "from-rose-500 to-red-700",      glow: "rgba(225,29,72,0.35)"   },
-  { name: "Sales Overview", href: "/sales",      icon: TrendingUp,       gradient: "from-cyan-500 to-teal-700",     glow: "rgba(8,145,178,0.35)"   },
-  { name: "Reports",        href: "/reports",    icon: BarChart3,        gradient: "from-indigo-500 to-blue-700",   glow: "rgba(79,70,229,0.35)"   },
-  { name: "Settings",       href: "/settings",   icon: Settings,         gradient: "from-slate-500 to-slate-700",   glow: "rgba(100,116,139,0.35)" },
+const ALL_NAV = [
+  { name: "Dashboard",      href: "/dashboard",            icon: LayoutDashboard, module: "dashboard",       gradient: "from-violet-500 to-purple-700",  glow: "rgba(124,58,237,0.35)"  },
+  { name: "Products",       href: "/products",             icon: Package,          module: "products",        gradient: "from-sky-500 to-blue-700",        glow: "rgba(2,132,199,0.35)"   },
+  { name: "POS Billing",    href: "/pos",                  icon: ShoppingCart,     module: "pos",             gradient: "from-emerald-500 to-green-700",   glow: "rgba(5,150,105,0.35)"   },
+  { name: "Customers",      href: "/customers",            icon: Users,            module: "customers",       gradient: "from-amber-500 to-orange-600",    glow: "rgba(217,119,6,0.35)"   },
+  { name: "Inventory",      href: "/inventory",            icon: Warehouse,        module: "inventory",       gradient: "from-rose-500 to-red-700",        glow: "rgba(225,29,72,0.35)"   },
+  { name: "Sales Overview", href: "/sales",                icon: TrendingUp,       module: "sales",           gradient: "from-cyan-500 to-teal-700",       glow: "rgba(8,145,178,0.35)"   },
+  { name: "Reports",        href: "/reports",              icon: BarChart3,        module: "reports",         gradient: "from-indigo-500 to-blue-700",     glow: "rgba(79,70,229,0.35)"   },
+  { name: "Settings",       href: "/settings",             icon: Settings,         module: "settings",        gradient: "from-slate-500 to-slate-700",     glow: "rgba(100,116,139,0.35)" },
+  { name: "Users",          href: "/settings/users",       icon: UserCog,          module: "users",           gradient: "from-violet-500 to-indigo-700",   glow: "rgba(124,58,237,0.35)"  },
+  { name: "Permissions",    href: "/settings/permissions", icon: Shield,           module: "users",           gradient: "from-violet-500 to-indigo-700",   glow: "rgba(124,58,237,0.35)"  },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
-  const { profile, signOut } = useAuth()
+  const { profile, signOut, hasPermission } = useAuth()
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
@@ -34,6 +36,17 @@ export function Sidebar() {
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()
     : "U"
+
+  // Filter nav items based on user permissions
+  const navigation = ALL_NAV.filter((item) => typeof hasPermission === "function" ? hasPermission(item.module, "view") : false)
+
+  // Group: split admin-only items visually
+  const mainNav = navigation.filter(
+    (item) => !["users", "permissions"].includes(item.href.replace("/settings/", ""))
+  )
+  const adminNav = navigation.filter(
+    (item) => item.href === "/settings/users" || item.href === "/settings/permissions"
+  )
 
   return (
     <div
@@ -46,21 +59,18 @@ export function Sidebar() {
         style={{ background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(124,58,237,0.18), transparent)" }}
       />
 
-      {/* ── Logo / Brand ───────────────────────────────────── */}
+      {/* ── Logo / Brand ─────────────────────────────────── */}
       <div className="relative z-10 px-5 pt-6 pb-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
         <div className="flex items-center gap-3.5">
-          {/* Animated logo icon */}
           <div className="relative animate-float shrink-0">
             <div className="w-11 h-11 rounded-2xl gradient-primary flex items-center justify-center shadow-xl glow-violet">
               <ShoppingBag className="h-5 w-5 text-white" />
             </div>
-            {/* Live pulse dot */}
             <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-[#060612] animate-pulse" />
           </div>
-
           <div className="min-w-0 flex-1">
             <h1 className="font-bold text-[15px] leading-tight text-gradient-primary tracking-tight">
-              National Mini Mart
+              Techno Bills
             </h1>
             <div className="flex items-center gap-1.5 mt-0.5">
               <Zap className="h-3 w-3 text-amber-400 shrink-0" />
@@ -69,7 +79,6 @@ export function Sidebar() {
           </div>
         </div>
 
-        {/* Status bar */}
         <div
           className="mt-4 flex items-center gap-2 px-3 py-2 rounded-xl"
           style={{ background: "rgba(5,150,105,0.08)", border: "1px solid rgba(5,150,105,0.18)" }}
@@ -80,59 +89,29 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* ── Navigation ─────────────────────────────────────── */}
+      {/* ── Navigation ───────────────────────────────────── */}
       <nav className="relative z-10 flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         <p className="section-label px-3 mb-3">Navigation</p>
-        {navigation.map((item) => {
-          const isActive = pathname === item.href
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={[
-                "group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 overflow-hidden",
-                isActive
-                  ? "bg-white/10 text-white nav-active-glow"
-                  : "text-slate-400 hover:text-white hover:bg-white/6",
-              ].join(" ")}
-            >
-              {/* Left active bar */}
-              {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.8)]" />
-              )}
-
-              {/* Hover background shimmer */}
-              <span className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))" }} />
-
-              {/* Icon pill */}
-              <span
-                className={[
-                  "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 relative z-10",
-                  isActive
-                    ? `bg-gradient-to-br ${item.gradient} shadow-lg`
-                    : "bg-white/5 group-hover:bg-white/10",
-                ].join(" ")}
-                style={isActive ? { boxShadow: `0 0 12px ${item.glow}` } : {}}
-              >
-                <item.icon className="h-[15px] w-[15px]" />
-              </span>
-
-              <span className="truncate relative z-10 font-[500]">{item.name}</span>
-
-              {/* Active pulse dot */}
-              {isActive && (
-                <span
-                  className={`ml-auto w-2 h-2 rounded-full shrink-0 bg-gradient-to-br ${item.gradient} relative z-10`}
-                  style={{ boxShadow: `0 0 6px ${item.glow}` }}
-                />
-              )}
-            </Link>
-          )
+        {mainNav.map((item) => {
+          const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))
+          return <NavItem key={item.href} item={item} isActive={isActive} />
         })}
+
+        {/* Admin section */}
+        {adminNav.length > 0 && (
+          <>
+            <div className="px-3 pt-4 pb-2">
+              <p className="section-label">Admin</p>
+            </div>
+            {adminNav.map((item) => {
+              const isActive = pathname === item.href
+              return <NavItem key={item.href} item={item} isActive={isActive} />
+            })}
+          </>
+        )}
       </nav>
 
-      {/* ── Theme Toggle ───────────────────────────────────── */}
+      {/* ── Theme Toggle ─────────────────────────────────── */}
       <div className="relative z-10 px-3 pb-2">
         <Button
           variant="ghost"
@@ -154,9 +133,8 @@ export function Sidebar() {
         </Button>
       </div>
 
-      {/* ── User Profile ───────────────────────────────────── */}
+      {/* ── User Profile ─────────────────────────────────── */}
       <div className="relative z-10 p-3 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-        {/* User card */}
         <div
           className="flex items-center gap-3 px-3 py-3 rounded-xl mb-2"
           style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)" }}
@@ -180,11 +158,9 @@ export function Sidebar() {
               </p>
             </div>
           </div>
-          {/* Online indicator */}
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
         </div>
 
-        {/* Sign out */}
         <Button
           variant="ghost"
           size="sm"
@@ -198,5 +174,43 @@ export function Sidebar() {
         </Button>
       </div>
     </div>
+  )
+}
+
+function NavItem({ item, isActive }: { item: typeof ALL_NAV[0]; isActive: boolean }) {
+  return (
+    <Link
+      href={item.href}
+      className={[
+        "group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 overflow-hidden",
+        isActive
+          ? "bg-white/10 text-white nav-active-glow"
+          : "text-slate-400 hover:text-white hover:bg-white/6",
+      ].join(" ")}
+    >
+      {isActive && (
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.8)]" />
+      )}
+      <span className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+        style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))" }} />
+      <span
+        className={[
+          "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 relative z-10",
+          isActive
+            ? `bg-gradient-to-br ${item.gradient} shadow-lg`
+            : "bg-white/5 group-hover:bg-white/10",
+        ].join(" ")}
+        style={isActive ? { boxShadow: `0 0 12px ${item.glow}` } : {}}
+      >
+        <item.icon className="h-[15px] w-[15px]" />
+      </span>
+      <span className="truncate relative z-10 font-[500]">{item.name}</span>
+      {isActive && (
+        <span
+          className={`ml-auto w-2 h-2 rounded-full shrink-0 bg-gradient-to-br ${item.gradient} relative z-10`}
+          style={{ boxShadow: `0 0 6px ${item.glow}` }}
+        />
+      )}
+    </Link>
   )
 }

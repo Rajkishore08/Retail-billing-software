@@ -73,7 +73,7 @@ export function LoginForm() {
             <ShoppingBag className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-white font-bold text-xl leading-tight tracking-tight">National Mini Mart</h1>
+            <h1 className="text-white font-bold text-xl leading-tight tracking-tight">Techno Bills</h1>
             <div className="flex items-center gap-1.5 mt-0.5">
               <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
               <p className="text-violet-400 text-xs font-semibold">POS System v2.0</p>
@@ -88,7 +88,7 @@ export function LoginForm() {
             <span className="text-gradient-primary">faster billing.</span>
           </h2>
           <p className="text-slate-400 text-[15px] max-w-sm leading-relaxed mb-10">
-            A modern point-of-sale system for National Mini Mart — with GST billing, inventory, analytics and WhatsApp sharing built in.
+            A modern point-of-sale system for Techno Bills — with GST billing, inventory, analytics and WhatsApp sharing built in.
           </p>
 
           {/* Stat pills */}
@@ -130,7 +130,7 @@ export function LoginForm() {
 
         {/* Footer */}
         <div className="z-10 flex items-center justify-between">
-          <p className="text-slate-600 text-xs">© 2025 National Mini Mart. All rights reserved.</p>
+          <p className="text-slate-600 text-xs">© 2025 Techno Bills. All rights reserved.</p>
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-emerald-400 text-xs font-medium">Live</span>
@@ -153,7 +153,7 @@ export function LoginForm() {
               <ShoppingBag className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-base leading-tight">National Mini Mart</h1>
+              <h1 className="font-bold text-base leading-tight">Techno Bills</h1>
               <p className="text-muted-foreground text-xs">POS System</p>
             </div>
           </div>

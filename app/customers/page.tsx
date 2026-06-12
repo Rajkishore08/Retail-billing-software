@@ -18,6 +18,7 @@ import {
   CheckCircle2, AlertTriangle, Clock, Crown, X
 } from "lucide-react"
 import { toast } from "sonner"
+import { RouteGuard } from "@/components/auth/route-guard"
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 type Customer = {
@@ -238,6 +239,7 @@ export default function CustomersPage() {
   }
 
   return (
+    <RouteGuard module="customers">
     <div className="space-y-6 animate-fade-in-up">
       {/* ── Header ────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -465,5 +467,6 @@ export default function CustomersPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </RouteGuard>
   )
 }

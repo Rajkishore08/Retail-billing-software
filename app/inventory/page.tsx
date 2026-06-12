@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { getAllProductImages, placeholderClass, initials } from "@/lib/product-image-store"
+import { RouteGuard } from "@/components/auth/route-guard"
 
 type Product = {
   id: string
@@ -164,6 +165,7 @@ export default function InventoryPage() {
   }
 
   return (
+    <RouteGuard module="inventory">
     <div className="space-y-6 animate-fade-in-up">
 
       {/* ── Page Header Banner ─────────────────────────── */}
@@ -601,5 +603,6 @@ export default function InventoryPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </RouteGuard>
   )
 }

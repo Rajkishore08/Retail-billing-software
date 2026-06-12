@@ -78,7 +78,7 @@ function AppContentInner({ children }: { children: React.ReactNode }) {
 
           <div>
             <p className="text-white font-bold text-lg tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-              National Mini Mart
+              Techno Bills
             </p>
             <p className="text-slate-500 text-sm mt-1.5 font-medium">Initializing POS System…</p>
             {/* Progress dots */}

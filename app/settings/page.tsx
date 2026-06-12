@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -8,8 +8,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { supabase } from "@/lib/supabase-client"
 import { useAuth } from "@/contexts/auth-context"
-import { User, Store, Settings as SettingsIcon, Image as ImageIcon, CheckCircle2, Building2, MapPin, Phone, Hash, Percent, Receipt, ScanLine, Printer, MonitorSmartphone, CalendarDays } from "lucide-react"
+import { User, Store, Settings as SettingsIcon, Image as ImageIcon, CheckCircle2, Building2, MapPin, Phone, Hash, Percent, Receipt, ScanLine, Printer, MonitorSmartphone, CalendarDays, X, UserCog, Shield, ArrowRight } from "lucide-react"
 import { toast } from "sonner"
+import { getStoreLogo, setStoreLogo, removeStoreLogo, getStoreQrImage, setStoreQrImage, removeStoreQrImage } from "@/lib/store-image-store"
+import { RouteGuard } from "@/components/auth/route-guard"
+import Link from "next/link"
 
 export default function SettingsPage() {
   const { profile } = useAuth()
@@ -19,8 +22,23 @@ export default function SettingsPage() {
   const [profileData, setProfileData] = useState({ full_name: profile?.full_name || "", email: profile?.email || "", role: profile?.role || "cashier" })
   const [loading, setLoading] = useState(false)
   const [logoPreviewError, setLogoPreviewError] = useState(false)
+  const [logoImage, setLogoImage] = useState<string>("")
+  const [qrImage, setQrImage] = useState<string>("")
 
-  useEffect(() => { fetchSettings() }, [])
+  const logoFileRef = useRef<HTMLInputElement>(null)
+  const qrFileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    fetchSettings()
+    setLogoImage(getStoreLogo() || storeSettings.store_logo || "")
+    setQrImage(getStoreQrImage() || "")
+  }, [])
+
+  useEffect(() => {
+    if (storeSettings.store_logo) {
+      try { localStorage.setItem("store_logo", storeSettings.store_logo) } catch {}
+    }
+  }, [storeSettings.store_logo])
   useEffect(() => { if (profile) setProfileData({ full_name: profile.full_name || "", email: profile.email || "", role: profile.role || "cashier" }) }, [profile])
 
   const fetchSettings = async () => {
@@ -37,12 +55,41 @@ export default function SettingsPage() {
     }
   }
 
+  const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) { toast.error("Image must be under 2 MB"); return }
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const result = reader.result as string
+      setStoreLogo(result)
+      setLogoImage(result)
+      toast.success("Logo uploaded successfully!")
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleQrFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) { toast.error("Image must be under 2 MB"); return }
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const result = reader.result as string
+      setStoreQrImage(result)
+      setQrImage(result)
+      toast.success("QR code uploaded successfully!")
+    }
+    reader.readAsDataURL(file)
+  }
+
   const updateSettings = async () => {
     setLoading(true)
     try {
       const entries = Object.entries(storeSettings).map(([key, value]) => ({ key, value }))
       for (const setting of entries) await supabase.from("settings").upsert(setting, { onConflict: "key" })
-      try { localStorage.setItem("store_logo", storeSettings.store_logo); localStorage.setItem("store_name", storeSettings.store_name) } catch {}
+      if (logoImage) try { localStorage.setItem("store_logo", logoImage) } catch {}
+      try { localStorage.setItem("store_name", storeSettings.store_name) } catch {}
       toast.success("Settings saved successfully!")
     } catch { toast.error("Error saving settings") } finally { setLoading(false) }
   }
@@ -57,6 +104,7 @@ export default function SettingsPage() {
   }
 
   return (
+    <RouteGuard module="settings">
     <div className="space-y-6 max-w-5xl animate-fade-in-up pb-10">
       {/* ── Header ────────────────────────────────────────── */}
       <div>
@@ -115,27 +163,173 @@ export default function SettingsPage() {
             </div>
           </div>
           <CardContent className="p-5 space-y-5">
-            <div className="flex flex-col items-center justify-center h-32 bg-white/5 rounded-xl border border-dashed border-white/10 relative overflow-hidden">
-              {storeSettings.store_logo && !logoPreviewError ? (
-                <img src={storeSettings.store_logo} alt="Store Logo" className="h-full w-full object-contain p-2" onError={() => setLogoPreviewError(true)} />
+            {/* ── Logo Section ── */}
+            <div className="space-y-1">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <ImageIcon className="h-3 w-3" /> Store Logo
+              </Label>
+            </div>
+
+            {/* Logo Upload Zone (click or drag) */}
+            <div
+              className="relative flex flex-col items-center justify-center h-36 bg-white/5 rounded-xl border-2 border-dashed border-white/15 cursor-pointer hover:border-purple-500/60 hover:bg-purple-500/5 transition-all duration-200 group overflow-hidden"
+              onClick={() => logoFileRef.current?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault()
+                const file = e.dataTransfer.files?.[0]
+                if (file) {
+                  const fakeEvt = { target: { files: [file] } } as unknown as React.ChangeEvent<HTMLInputElement>
+                  handleLogoFile(fakeEvt)
+                }
+              }}
+            >
+              {logoImage && !logoPreviewError ? (
+                <img src={logoImage} alt="Store Logo" className="h-full w-full object-contain p-3" onError={() => setLogoPreviewError(true)} />
               ) : (
-                <div className="text-center text-muted-foreground">
-                  <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  <p className="text-[10px] uppercase tracking-wider font-bold">Logo Preview</p>
+                <div className="text-center text-muted-foreground select-none">
+                  <div className="w-12 h-12 mx-auto mb-2 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
+                    <ImageIcon className="h-6 w-6 text-purple-400 opacity-70" />
+                  </div>
+                  <p className="text-xs font-bold text-purple-300/70">Click or drag to upload logo</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">PNG, JPG, SVG · Max 2 MB</p>
+                </div>
+              )}
+              {/* overlay hint on hover when image is present */}
+              {logoImage && !logoPreviewError && (
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <p className="text-xs text-white font-bold">Click to replace</p>
                 </div>
               )}
             </div>
+            <input type="file" accept="image/*" ref={logoFileRef} onChange={handleLogoFile} className="hidden" />
 
-            <div className="space-y-2">
-              <Label htmlFor="store_logo" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Logo URL</Label>
-              <Input id="store_logo" value={storeSettings.store_logo} onChange={(e) => { setStoreSettings({ ...storeSettings, store_logo: e.target.value }); setLogoPreviewError(false) }} placeholder="https://example.com/your-logo.png" className="h-11 rounded-xl bg-background border-border" />
+            {/* Logo action row */}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 rounded-xl border-border h-9 text-xs font-bold"
+                onClick={() => logoFileRef.current?.click()}
+              >
+                <ImageIcon className="h-3 w-3 mr-1.5" /> Upload Image File
+              </Button>
+              {logoImage && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 w-9 p-0 rounded-xl border-red-500/30 hover:bg-red-500/10"
+                  onClick={() => { removeStoreLogo(); setLogoImage(""); setStoreSettings({ ...storeSettings, store_logo: "" }); setLogoPreviewError(false) }}
+                  title="Remove logo"
+                >
+                  <X className="h-3 w-3 text-red-400" />
+                </Button>
+              )}
+            </div>
+
+            {/* Logo URL fallback */}
+            <div className="space-y-1.5">
+              <Label htmlFor="store_logo" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Or paste image URL</Label>
+              <Input
+                id="store_logo"
+                value={storeSettings.store_logo}
+                onChange={(e) => {
+                  setStoreSettings({ ...storeSettings, store_logo: e.target.value })
+                  setLogoImage(e.target.value)
+                  setLogoPreviewError(false)
+                }}
+                placeholder="https://example.com/logo.png"
+                className="h-9 rounded-xl bg-background border-border text-xs"
+              />
               <p className="text-[10px] text-muted-foreground">Paste a direct image URL (PNG, JPG, SVG).</p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="upi_id" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1"><ScanLine className="h-3 w-3" /> UPI ID for Receipts</Label>
+            {/* ── UPI ID ── */}
+            <div className="space-y-2 pt-1">
+              <Label htmlFor="upi_id" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <ScanLine className="h-3 w-3" /> UPI ID for Receipts
+              </Label>
               <Input id="upi_id" value={storeSettings.upi_id} onChange={(e) => setStoreSettings({ ...storeSettings, upi_id: e.target.value })} placeholder="yourstore@upi" className="h-11 rounded-xl bg-background border-border" />
               <p className="text-[10px] text-muted-foreground">This UPI ID will be shown as a QR code on printed receipts.</p>
+            </div>
+
+            {/* ── QR Code Section ── */}
+            <div className="space-y-1 pt-1">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <ScanLine className="h-3 w-3" /> Custom QR Code Image
+              </Label>
+            </div>
+
+            {/* QR Upload Zone */}
+            <div
+              className="relative flex flex-col items-center justify-center h-28 bg-white/5 rounded-xl border-2 border-dashed border-white/15 cursor-pointer hover:border-sky-500/60 hover:bg-sky-500/5 transition-all duration-200 group overflow-hidden"
+              onClick={() => qrFileRef.current?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault()
+                const file = e.dataTransfer.files?.[0]
+                if (file) {
+                  const fakeEvt = { target: { files: [file] } } as unknown as React.ChangeEvent<HTMLInputElement>
+                  handleQrFile(fakeEvt)
+                }
+              }}
+            >
+              {qrImage ? (
+                <img src={qrImage} alt="QR Code" className="h-full w-full object-contain p-2" />
+              ) : (
+                <div className="text-center text-muted-foreground select-none">
+                  <div className="w-10 h-10 mx-auto mb-1.5 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center group-hover:bg-sky-500/20 transition-colors">
+                    <ScanLine className="h-5 w-5 text-sky-400 opacity-70" />
+                  </div>
+                  <p className="text-xs font-bold text-sky-300/70">Click or drag to upload QR</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">PNG, JPG · Max 2 MB</p>
+                </div>
+              )}
+              {qrImage && (
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <p className="text-xs text-white font-bold">Click to replace</p>
+                </div>
+              )}
+            </div>
+            <input type="file" accept="image/*" ref={qrFileRef} onChange={handleQrFile} className="hidden" />
+
+            {/* QR action row */}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 rounded-xl border-border h-9 text-xs font-bold"
+                onClick={() => qrFileRef.current?.click()}
+              >
+                <ScanLine className="h-3 w-3 mr-1.5" /> Upload QR Image File
+              </Button>
+              {qrImage && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 w-9 p-0 rounded-xl border-red-500/30 hover:bg-red-500/10"
+                  onClick={() => { removeStoreQrImage(); setQrImage("") }}
+                  title="Remove QR"
+                >
+                  <X className="h-3 w-3 text-red-400" />
+                </Button>
+              )}
+            </div>
+
+            {/* QR URL fallback */}
+            <div className="space-y-1.5">
+              <Label htmlFor="qr_url" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Or paste QR image URL</Label>
+              <Input
+                id="qr_url"
+                value={qrImage.startsWith("data:") ? "" : qrImage}
+                onChange={(e) => {
+                  const url = e.target.value
+                  if (url) { setStoreQrImage(url); setQrImage(url) } else { removeStoreQrImage(); setQrImage("") }
+                }}
+                placeholder="https://example.com/qr-code.png"
+                className="h-9 rounded-xl bg-background border-border text-xs"
+              />
+              <p className="text-[10px] text-muted-foreground">Paste a direct image URL for your QR code.</p>
             </div>
           </CardContent>
         </Card>
@@ -156,7 +350,7 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="space-y-2">
               <Label htmlFor="store_name" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1"><Building2 className="h-3 w-3" /> Store Name</Label>
-              <Input id="store_name" value={storeSettings.store_name} onChange={(e) => setStoreSettings({ ...storeSettings, store_name: e.target.value })} placeholder="National Mini Mart" className="h-11 rounded-xl bg-background border-border" />
+              <Input id="store_name" value={storeSettings.store_name} onChange={(e) => setStoreSettings({ ...storeSettings, store_name: e.target.value })} placeholder="Techno Bills" className="h-11 rounded-xl bg-background border-border" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="store_phone" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" /> Phone Number</Label>
@@ -241,6 +435,60 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Admin-Only Navigation Hub ────────────────────── */}
+      {profile?.role === 'admin' && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-6 h-6 rounded-md bg-violet-500/20 flex items-center justify-center">
+              <Shield className="h-3.5 w-3.5 text-violet-400" />
+            </div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Admin Controls</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[
+              {
+                href: "/settings/users",
+                icon: UserCog,
+                title: "User Management",
+                desc: "Create, edit, activate/deactivate, and reset passwords for all system users.",
+                gradient: "linear-gradient(135deg,#7c3aed,#5b21b6)",
+                glow: "rgba(124,58,237,0.2)",
+                border: "rgba(124,58,237,0.25)",
+              },
+              {
+                href: "/settings/permissions",
+                icon: Shield,
+                title: "Permissions Matrix",
+                desc: "Configure page-level access rights for Manager and Cashier roles.",
+                gradient: "linear-gradient(135deg,#0284c7,#075985)",
+                glow: "rgba(2,132,199,0.2)",
+                border: "rgba(2,132,199,0.25)",
+              },
+            ].map((item) => (
+              <Link key={item.href} href={item.href}>
+                <div
+                  className="group flex items-center gap-4 p-5 rounded-2xl border cursor-pointer hover:scale-[1.01] transition-all"
+                  style={{ background: `${item.glow}`, borderColor: item.border }}
+                >
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-lg"
+                    style={{ background: item.gradient }}
+                  >
+                    <item.icon className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-sm">{item.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{item.desc}</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-1 transition-transform shrink-0" />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
+    </RouteGuard>
   )
 }

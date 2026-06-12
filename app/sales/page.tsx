@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase-client"
 import { TrendingUp, IndianRupee, ShoppingCart, Calendar, Search, Eye, Filter, ArrowUpRight } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { TransactionDetailsModal } from "@/components/sales/transaction-details-modal"
+import { RouteGuard } from "@/components/auth/route-guard"
 
 type TransactionItem = { id: string; product_name: string; quantity: number; unit_price: number; total_price: number; gst_rate: number }
 type Transaction = { id: string; invoice_number: string; customer_name: string | null; customer_phone: string | null; subtotal: number; gst_amount: number; total_amount: number; payment_method: string; cash_received: number | null; change_amount: number | null; status: string; created_at: string; cashier: { full_name: string } | null; customer: { name: string; phone: string } | null; transaction_items: TransactionItem[] }
@@ -60,6 +61,11 @@ export default function SalesPage() {
       if (error) throw error
       setTransactions(data || [])
     } finally { setLoading(false) }
+  }
+
+  const handleViewTransaction = (transaction: Transaction) => {
+    setSelectedTransaction(transaction)
+    setIsModalOpen(true)
   }
 
   const filteredTransactions = transactions.filter((t) => {
@@ -113,6 +119,7 @@ export default function SalesPage() {
   )
 
   return (
+    <RouteGuard module="sales">
     <div className="space-y-6 animate-fade-in-up">
       {/* ── Header ────────────────────────────────────────── */}
       <div className="flex justify-between items-center">
@@ -286,5 +293,6 @@ export default function SalesPage() {
 
       <TransactionDetailsModal transaction={selectedTransaction} isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setSelectedTransaction(null) }} onTransactionUpdated={() => { fetchTransactions(); fetchSalesData() }} />
     </div>
+    </RouteGuard>
   )
 }

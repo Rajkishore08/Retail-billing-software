@@ -497,7 +497,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 /* ─── Divider ────────────────────────────────────────────────────────────── */
 .divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  background: linear-gradient(90deg, transparent, hsl(var(--border)), transparent);
 }
 
 /* ─── Image Card Overlay ─────────────────────────────────────────────────── */

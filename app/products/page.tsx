@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Plus, Edit, Trash2, Package, Scan, Search, ImagePlus,
   X, AlertTriangle, CheckCircle2, Tag, Barcode, Layers,
-  Upload, Link2, Grid3X3, List,
+  Upload, Link2, Grid3X3, List, History,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase-client"
 import { toast } from "sonner"
@@ -17,6 +18,8 @@ import {
   getAllProductImages, setProductImage, removeProductImage,
   placeholderClass, initials,
 } from "@/lib/product-image-store"
+import { ProductHistoryTab } from "@/components/products/product-history-tab"
+import { RouteGuard } from "@/components/auth/route-guard"
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 type Product = {
@@ -33,12 +36,14 @@ type Product = {
   hsn_code: string
   brand: string
   barcode?: string
+  sale_unit?: string
 }
 
 const BLANK_FORM = {
   name: "", price: "", cost_price: "", selling_price: "",
   stock_quantity: "", min_stock_level: "5", gst_rate: "18",
   price_includes_gst: "true", hsn_code: "", brand: "", barcode: "",
+  sale_unit: "pcs",
 }
 
 // ─── Product Image ─────────────────────────────────────────────────────────
@@ -193,6 +198,7 @@ export default function ProductsPage() {
       hsn_code: product.hsn_code,
       brand: product.brand,
       barcode: product.barcode || "",
+      sale_unit: product.sale_unit || "pcs",
     })
     setPendingImage(productImages[product.id] || "")
     setShowDialog(true)
@@ -213,6 +219,7 @@ export default function ProductsPage() {
       hsn_code: formData.hsn_code || "999999",
       brand: formData.brand || "Generic",
       barcode: formData.barcode || null,
+      sale_unit: formData.sale_unit || "pcs",
     }
     try {
       if (!editing) {
@@ -246,12 +253,25 @@ export default function ProductsPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this product? This cannot be undone.")) return
-    const { error } = await supabase.from("products").delete().eq("id", id)
+    if (!confirm("Delete this product? The record will be soft-deleted and preserved in history.")) return
+    // Soft delete: set deleted_at instead of hard delete
+    const { error } = await supabase
+      .from("products")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", id)
     if (error) {
-      if (error.code === "23503") toast.error("Cannot delete: product is used in transactions")
-      else toast.error(`Delete failed: ${error.message}`)
-      return
+      // If deleted_at column doesn't exist yet, fall back to filter from view
+      if (error.code === "PGRST204" || error.message?.includes("deleted_at")) {
+        const { error: hardErr } = await supabase.from("products").delete().eq("id", id)
+        if (hardErr) {
+          if (hardErr.code === "23503") toast.error("Cannot delete: product is used in transactions")
+          else toast.error(`Delete failed: ${hardErr.message}`)
+          return
+        }
+      } else {
+        toast.error(`Delete failed: ${error.message}`)
+        return
+      }
     }
     removeProductImage(id)
     setProductImages(getAllProductImages())
@@ -286,8 +306,24 @@ export default function ProductsPage() {
   }
 
   return (
+    <RouteGuard module="products">
     <div className="space-y-6 animate-fade-in-up">
 
+      {/* ── Tabs (Products / History) ────────────────── */}
+      <Tabs defaultValue="catalog" className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <TabsList className="h-11 px-1.5 rounded-xl bg-card border border-border gap-1">
+            <TabsTrigger value="catalog" className="rounded-lg text-sm font-semibold px-5">
+              <Package className="h-3.5 w-3.5 mr-2" />Products
+            </TabsTrigger>
+            <TabsTrigger value="history" className="rounded-lg text-sm font-semibold px-5">
+              <History className="h-3.5 w-3.5 mr-2" />Product History
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        {/* ── Catalog Tab ─────────────────────────────── */}
+        <TabsContent value="catalog" className="space-y-6 mt-0">
       {/* ── Page Header Banner ─────────────────────────── */}
       <div className="page-header-banner">
         <div
@@ -683,8 +719,8 @@ export default function ProductsPage() {
             <div className="space-y-4">
               <p className="section-label">Categorization & Tax</p>
 
-              {/* Brand + HSN */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Brand + HSN + Sale Unit */}
+              <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1.5 relative">
                   <Label htmlFor="brand" className="text-sm font-semibold">Brand</Label>
                   <Input id="brand" value={formData.brand}
@@ -708,6 +744,18 @@ export default function ProductsPage() {
                   <Input id="hsn_code" value={formData.hsn_code}
                     onChange={e => setFormData({ ...formData, hsn_code: e.target.value })}
                     placeholder="999999" className="h-10 rounded-xl" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="sale_unit" className="text-sm font-semibold">Sale Unit *</Label>
+                  <select
+                    id="sale_unit"
+                    value={formData.sale_unit}
+                    onChange={e => setFormData({ ...formData, sale_unit: e.target.value })}
+                    className="flex h-10 w-full rounded-xl border border-input bg-background text-foreground px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="pcs" className="bg-background text-foreground">Pieces (pcs)</option>
+                    <option value="kg" className="bg-background text-foreground">Kilograms (kg)</option>
+                  </select>
                 </div>
               </div>
 
@@ -769,6 +817,14 @@ export default function ProductsPage() {
           </form>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        {/* ── History Tab ──────────────────────────────── */}
+        <TabsContent value="history" className="mt-0">
+          <ProductHistoryTab />
+        </TabsContent>
+      </Tabs>
     </div>
+    </RouteGuard>
   )
 }

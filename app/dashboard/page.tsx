@@ -12,6 +12,7 @@ import { DashboardStats } from "@/components/dashboard/dashboard-stats"
 import { SalesCharts } from "@/components/dashboard/sales-charts"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useState, useEffect } from "react"
+import { RouteGuard } from "@/components/auth/route-guard"
 
 const quickActions = [
   {
@@ -65,9 +66,9 @@ const quickActions = [
 ]
 
 const steps = [
-  { label: "Set up your products",     sub: "Add items with prices and stock",          done: true  },
-  { label: "Configure store settings", sub: "Update your store info & tax preferences", done: true  },
-  { label: "Start making sales",       sub: "Use POS to process transactions",          done: false },
+  { label: "Set up your products", sub: "Add items with prices and stock", done: true },
+  { label: "Configure store settings", sub: "Update your store info & tax preferences", done: true },
+  { label: "Start making sales", sub: "Use POS to process transactions", done: false },
 ]
 
 export default function DashboardPage() {
@@ -96,16 +97,17 @@ export default function DashboardPage() {
       <div className="space-y-8 animate-fade-in">
         <div className="h-44 skeleton rounded-2xl" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {[1,2,3].map(i => <div key={i} className="h-40 skeleton rounded-2xl" />)}
+          {[1, 2, 3].map(i => <div key={i} className="h-40 skeleton rounded-2xl" />)}
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1,2,3,4].map(i => <div key={i} className="h-36 skeleton rounded-2xl" />)}
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-36 skeleton rounded-2xl" />)}
         </div>
       </div>
     )
   }
 
   return (
+    <RouteGuard module="dashboard">
     <div className="space-y-8 animate-fade-in-up">
 
       {/* ── Hero Banner ───────────────────────────────────── */}
@@ -137,7 +139,7 @@ export default function DashboardPage() {
               Your Store Dashboard {greetingEmoji}
             </h1>
             <p className="text-violet-300/80 text-sm font-medium">
-              National Mini Mart POS — Here&apos;s your store at a glance.
+              Techno Bills POS — Here&apos;s your store at a glance.
             </p>
 
             {/* Date + quick stats row */}
@@ -184,7 +186,7 @@ export default function DashboardPage() {
       {/* ── Tabs ─────────────────────────────────────────── */}
       <Tabs defaultValue="overview" className="space-y-7">
         <TabsList className="h-11 px-1.5 rounded-xl bg-card border border-border gap-1">
-          <TabsTrigger value="overview"  className="rounded-lg text-sm font-semibold px-6">Overview</TabsTrigger>
+          <TabsTrigger value="overview" className="rounded-lg text-sm font-semibold px-6">Overview</TabsTrigger>
           <TabsTrigger value="analytics" className="rounded-lg text-sm font-semibold px-6">Sales Analytics</TabsTrigger>
         </TabsList>
 
@@ -209,7 +211,7 @@ export default function DashboardPage() {
                 return (
                   <Link key={action.href} href={action.href}>
                     <div
-                      className={`rounded-2xl p-5 flex flex-col gap-4 cursor-pointer card-hover border stagger-${i+1} animate-fade-in-up group`}
+                      className={`rounded-2xl p-5 flex flex-col gap-4 cursor-pointer card-hover border stagger-${i + 1} animate-fade-in-up group`}
                       style={{
                         background: action.bg,
                         borderColor: action.border,
@@ -303,5 +305,6 @@ export default function DashboardPage() {
         </TabsContent>
       </Tabs>
     </div>
+    </RouteGuard>
   )
 }

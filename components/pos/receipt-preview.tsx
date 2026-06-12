@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase-client"
 import { Printer, Gift, FileText, MessageCircle, X, ImageDown, Loader2 } from "lucide-react"
 import { motion } from "framer-motion"
 import { toast } from "sonner"
+import { getStoreLogo, getStoreQrImage } from "@/lib/store-image-store"
 
 type ReceiptProps = {
   transaction: any
@@ -30,6 +31,11 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
       setStoreSettings(settings)
     }
   }
+
+  const uploadedLogo = getStoreLogo()
+  const uploadedQr = getStoreQrImage()
+  const effectiveLogo = uploadedLogo || storeSettings.store_logo || ""
+  const effectiveQr = uploadedQr || null
 
   const calculateTotalSavings = () => {
     let totalSavings = 0
@@ -88,7 +94,7 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
 
   // ── WhatsApp Text Share (fallback) ──────────────────────────────
   const shareTextOnWhatsApp = () => {
-    const storeName = storeSettings.store_name || "National Mini Mart"
+    const storeName = storeSettings.store_name || "Techno Bills"
     const date = new Date(transaction.created_at).toLocaleDateString("en-IN")
     const time = new Date(transaction.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
     const itemLines = transaction.items
@@ -134,12 +140,18 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
     setTimeout(() => printWindow.print(), 400)
   }
 
-  const logoHtml = storeSettings.store_logo
-    ? `<img src="${storeSettings.store_logo}" alt="Logo" style="height:60px;object-fit:contain;margin-bottom:6px;" onerror="this.style.display='none'" /><br/>`
+  const logoHtml = effectiveLogo
+    ? `<img src="${effectiveLogo}" alt="Logo" style="height:60px;object-fit:contain;margin-bottom:6px;" onerror="this.style.display='none'" /><br/>`
     : ""
 
   const upiQrUrl = getUpiQrUrl()
-  const upiQrHtml = upiQrUrl
+  const upiQrHtml = effectiveQr
+    ? `<div style="text-align:center;margin:10px 0;">
+        <div style="font-size:11px;font-weight:bold;margin-bottom:4px;">Scan to Pay via UPI</div>
+        <img src="${effectiveQr}" alt="UPI QR" style="width:100px;height:100px;" />
+        <div style="font-size:10px;color:#666;margin-top:2px;">${storeSettings.upi_id}</div>
+       </div>`
+    : upiQrUrl
     ? `<div style="text-align:center;margin:10px 0;">
         <div style="font-size:11px;font-weight:bold;margin-bottom:4px;">Scan to Pay via UPI</div>
         <img src="${upiQrUrl}" alt="UPI QR" style="width:100px;height:100px;" />
@@ -161,7 +173,7 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
       </style></head><body>
       <div class="center">
         ${logoHtml}
-        <div class="bold" style="font-size:15px;">${storeSettings.store_name || "NATIONAL MINI MART"}</div>
+        <div class="bold" style="font-size:15px;">${storeSettings.store_name || "TECHNO BILLS"}</div>
         ${storeSettings.store_address ? `<div style="font-size:10px;">${storeSettings.store_address}</div>` : ""}
         ${storeSettings.store_phone ? `<div style="font-size:10px;">Ph: ${storeSettings.store_phone}</div>` : ""}
         ${storeSettings.gst_number ? `<div style="font-size:10px;">GSTIN: ${storeSettings.gst_number}</div>` : ""}
@@ -198,6 +210,12 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
 
   const generatePDFReceiptHTML = () => {
     const savings = calculateTotalSavings()
+    const pdfLogoHtml = effectiveLogo ? `<img src="${effectiveLogo}" class="logo" alt="Logo" onerror="this.style.display='none'" /><br/>` : ""
+    const pdfQrHtml = effectiveQr
+      ? `<div class="qr-section"><div style="font-size:13px;font-weight:bold;margin-bottom:8px;">💳 Pay via UPI / Scan QR</div><img src="${effectiveQr}" width="110" height="110" alt="UPI QR"/><div style="font-size:12px;color:#555;margin-top:4px;">${storeSettings.upi_id}</div></div>`
+      : upiQrUrl
+      ? `<div class="qr-section"><div style="font-size:13px;font-weight:bold;margin-bottom:8px;">💳 Pay via UPI / Scan QR</div><img src="${upiQrUrl}" width="110" height="110" alt="UPI QR"/><div style="font-size:12px;color:#555;margin-top:4px;">${storeSettings.upi_id}</div></div>`
+      : ""
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice - ${transaction.invoice_number}</title>
       <style>
         body{font-family:Arial,sans-serif;margin:0;padding:24px;max-width:520px;color:#111;}
@@ -215,8 +233,8 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
         @media print{@page{margin:1cm;}}
       </style></head><body>
       <div class="header">
-        ${storeSettings.store_logo ? `<img src="${storeSettings.store_logo}" class="logo" alt="Logo" onerror="this.style.display='none'" /><br/>` : ""}
-        <div class="title">${storeSettings.store_name || "NATIONAL MINI MART"}</div>
+        ${pdfLogoHtml}
+        <div class="title">${storeSettings.store_name || "TECHNO BILLS"}</div>
         ${storeSettings.store_address ? `<div class="sub">${storeSettings.store_address}</div>` : ""}
         ${storeSettings.store_phone ? `<div class="sub">Phone: ${storeSettings.store_phone}</div>` : ""}
         ${storeSettings.gst_number ? `<div class="sub">GSTIN: ${storeSettings.gst_number}</div>` : ""}
@@ -246,7 +264,7 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
         <tr><td>Payment Method</td><td style="text-align:right">${transaction.payment_method.toUpperCase()}</td></tr>
         ${transaction.cash_received ? `<tr><td>Cash Received</td><td style="text-align:right">₹${transaction.cash_received.toFixed(2)}</td></tr><tr><td>Change</td><td style="text-align:right">₹${(transaction.change_amount || 0).toFixed(2)}</td></tr>` : ""}
       </table>
-      ${upiQrUrl ? `<div class="qr-section"><div style="font-size:13px;font-weight:bold;margin-bottom:8px;">💳 Pay via UPI / Scan QR</div><img src="${upiQrUrl}" width="110" height="110" alt="UPI QR"/><div style="font-size:12px;color:#555;margin-top:4px;">${storeSettings.upi_id}</div></div>` : ""}
+      ${pdfQrHtml}
       ${transaction.customer && transaction.loyalty_points_earned > 0 ? `<div style="background:#f0f4ff;padding:10px;border-radius:6px;text-align:center;margin:12px 0;"><strong>⭐ Loyalty Points Earned: +${transaction.loyalty_points_earned}</strong><br/><small>Thank you for being a valued customer!</small></div>` : ""}
       <div class="footer">${storeSettings.receipt_footer || "Thank you for shopping with us! Visit again."}</div>
     </body></html>`
@@ -274,15 +292,15 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
         >
           {/* Store Header */}
           <div className="text-center mb-2">
-            {storeSettings.store_logo && (
+            {effectiveLogo && (
               <img
-                src={storeSettings.store_logo}
+                src={effectiveLogo}
                 alt="Logo"
                 className="h-12 mx-auto object-contain mb-1"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }}
               />
             )}
-            <div className="font-bold text-sm">{storeSettings.store_name || "NATIONAL MINI MART"}</div>
+            <div className="font-bold text-sm">{storeSettings.store_name || "TECHNO BILLS"}</div>
             {storeSettings.store_address && <div className="text-gray-500 text-xs">{storeSettings.store_address}</div>}
             {storeSettings.store_phone && <div className="text-gray-500 text-xs">Ph: {storeSettings.store_phone}</div>}
             {storeSettings.gst_number && <div className="text-gray-500 text-xs">GSTIN: {storeSettings.gst_number}</div>}
@@ -355,13 +373,19 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
           </div>
 
           {/* UPI QR Preview */}
-          {upiQrUrl && (
+          {effectiveQr ? (
+            <div className="text-center mt-2 border border-dashed border-gray-300 rounded p-2">
+              <div className="text-xs font-bold mb-1">Scan to Pay via UPI</div>
+              <img src={effectiveQr} alt="UPI QR" className="w-20 h-20 mx-auto" />
+              <div className="text-xs text-gray-500 mt-1">{storeSettings.upi_id}</div>
+            </div>
+          ) : upiQrUrl ? (
             <div className="text-center mt-2 border border-dashed border-gray-300 rounded p-2">
               <div className="text-xs font-bold mb-1">Scan to Pay via UPI</div>
               <img src={upiQrUrl} alt="UPI QR" className="w-20 h-20 mx-auto" />
               <div className="text-xs text-gray-500 mt-1">{storeSettings.upi_id}</div>
             </div>
-          )}
+          ) : null}
 
           {/* Loyalty */}
           {transaction.customer && transaction.loyalty_points_earned > 0 && (
