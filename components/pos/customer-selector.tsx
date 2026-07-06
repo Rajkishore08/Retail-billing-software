@@ -90,8 +90,8 @@ export function CustomerSelector({ selectedCustomer, onCustomerSelect }: Custome
                 </div>
                 <div className="text-sm text-gray-600">{selectedCustomer.phone}</div>
                 <div className="flex items-center gap-2 mt-1">
-                  <Gift className="h-3 w-3 text-purple-600" />
-                  <span className="text-sm text-purple-600">{selectedCustomer.loyalty_points} points</span>
+                  <Gift className="h-3 w-3 text-blue-600" />
+                  <span className="text-sm text-blue-600">{selectedCustomer.loyalty_points} points</span>
                 </div>
               </div>
               <Button variant="outline" size="sm" onClick={() => setShowDialog(true)}>
