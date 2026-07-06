@@ -51,12 +51,12 @@ function AppContentInner({ children }: { children: React.ReactNode }) {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
-        style={{ background: "linear-gradient(145deg,#060612 0%,#0f0a24 50%,#060612 100%)" }}
+        style={{ background: "linear-gradient(145deg,#060612 0%,#080f26 50%,#060612 100%)" }}
       >
         {/* Ambient blobs */}
         <div
           className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full pointer-events-none animate-orb-drift opacity-30"
-          style={{ background: "radial-gradient(circle, rgba(124,58,237,0.4), transparent 70%)" }}
+          style={{ background: "radial-gradient(circle, rgba(37,99,235,0.4), transparent 70%)" }}
         />
         <div
           className="absolute bottom-1/4 right-1/4 w-48 h-48 rounded-full pointer-events-none animate-orb-drift opacity-20"
@@ -67,11 +67,11 @@ function AppContentInner({ children }: { children: React.ReactNode }) {
           {/* Layered spinner */}
           <div className="relative mx-auto w-20 h-20">
             {/* Outer ring */}
-            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-violet-400 border-r-violet-500/50 animate-spin" />
+            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-blue-400 border-r-blue-500/50 animate-spin" />
             {/* Middle ring */}
             <div className="absolute inset-2 rounded-full border-2 border-transparent border-b-emerald-400 border-l-emerald-500/50 animate-spin" style={{ animationDirection: "reverse", animationDuration: "1.4s" }} />
             {/* Inner brand icon */}
-            <div className="absolute inset-4 rounded-full gradient-primary flex items-center justify-center shadow-xl glow-violet">
+            <div className="absolute inset-4 rounded-full gradient-primary flex items-center justify-center shadow-xl glow-blue">
               <ShoppingBag className="h-5 w-5 text-white" />
             </div>
           </div>
@@ -86,7 +86,7 @@ function AppContentInner({ children }: { children: React.ReactNode }) {
               {[0, 1, 2].map(i => (
                 <span
                   key={i}
-                  className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-bounce-subtle"
+                  className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce-subtle"
                   style={{ animationDelay: `${i * 0.2}s` }}
                 />
               ))}

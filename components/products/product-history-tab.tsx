@@ -151,13 +151,13 @@ export function ProductHistoryTab() {
           </div>
 
           {/* Action type */}
-          <Select value={actionFilter} onValueChange={(v) => setActionFilter(v as any)}>
+          <Select value={actionFilter || "all"} onValueChange={(v) => setActionFilter(v === "all" ? "" : v as any)}>
             <SelectTrigger className="h-10 rounded-xl w-48">
               <Filter className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
               <SelectValue placeholder="All Actions" />
             </SelectTrigger>
             <SelectContent className="rounded-xl">
-              <SelectItem value="">All Actions</SelectItem>
+              <SelectItem value="all">All Actions</SelectItem>
               {Object.entries(ACTION_COLORS).map(([key, val]) => (
                 <SelectItem key={key} value={key}>{val.label}</SelectItem>
               ))}
@@ -166,13 +166,13 @@ export function ProductHistoryTab() {
 
           {/* Modified by */}
           {users.length > 0 && (
-            <Select value={userFilter} onValueChange={setUserFilter}>
+            <Select value={userFilter || "all"} onValueChange={(v) => setUserFilter(v === "all" ? "" : v)}>
               <SelectTrigger className="h-10 rounded-xl w-44">
                 <User className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
                 <SelectValue placeholder="All Users" />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
-                <SelectItem value="">All Users</SelectItem>
+                <SelectItem value="all">All Users</SelectItem>
                 {users.map((u) => (
                   <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                 ))}
@@ -212,7 +212,7 @@ export function ProductHistoryTab() {
               size="sm"
               onClick={handleExportPDF}
               disabled={exporting}
-              className="h-10 px-4 rounded-xl gap-2 text-xs font-semibold hover:border-violet-500/50 hover:text-violet-400"
+              className="h-10 px-4 rounded-xl gap-2 text-xs font-semibold hover:border-blue-500/50 hover:text-blue-400"
             >
               <FileText className="h-3.5 w-3.5" />PDF
             </Button>
@@ -248,7 +248,7 @@ export function ProductHistoryTab() {
             return (
               <div
                 key={entry.id}
-                className="flex items-start gap-4 p-4 rounded-xl border border-border bg-card hover:border-violet-500/30 transition-all animate-fade-in-up group"
+                className="flex items-start gap-4 p-4 rounded-xl border border-border bg-card hover:border-blue-500/30 transition-all animate-fade-in-up group"
                 style={{ animationDelay: `${i * 0.03}s`, animationFillMode: "forwards" }}
               >
                 {/* Action badge */}
@@ -284,7 +284,7 @@ export function ProductHistoryTab() {
                   variant="ghost"
                   size="sm"
                   onClick={() => setSelectedEntry(entry)}
-                  className="h-8 px-3 rounded-lg text-xs opacity-0 group-hover:opacity-100 transition-opacity hover:bg-violet-500/10 hover:text-violet-400 shrink-0"
+                  className="h-8 px-3 rounded-lg text-xs opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-500/10 hover:text-blue-400 shrink-0"
                 >
                   <Eye className="h-3 w-3 mr-1.5" />Details
                 </Button>

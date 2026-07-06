@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { getAllProductImages, placeholderClass, initials } from "@/lib/product-image-store"
+import { getStoreQrImage } from "@/lib/store-image-store"
 
 type Product = {
   id: string
@@ -58,6 +59,15 @@ export function POSInterface() {
   const [products, setProducts] = useState<Product[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
   const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm)
+    }, 300)
+    return () => clearTimeout(handler)
+  }, [searchTerm])
+
   const [selectedBrand, setSelectedBrand] = useState<string>("all")
   const [brands, setBrands] = useState<string[]>([])
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash")
@@ -83,6 +93,7 @@ export function POSInterface() {
 
   // Add product dialog state
   const [showAddProductDialog, setShowAddProductDialog] = useState(false)
+  const [storeSettings, setStoreSettings] = useState<Record<string, string>>({})
   const [productImages, setProductImages] = useState<Record<string, string>>({})
   const [newProductForm, setNewProductForm] = useState({
     name: "",
@@ -160,8 +171,8 @@ export function POSInterface() {
     }
     
     // Filter by search term (combined product search and barcode)
-    if (searchTerm.trim()) {
-      const searchLower = searchTerm.toLowerCase()
+    if (debouncedSearch.trim()) {
+      const searchLower = debouncedSearch.toLowerCase()
       filtered = filtered.filter(
         (product) => 
           product.name.toLowerCase().includes(searchLower) || 
@@ -172,7 +183,7 @@ export function POSInterface() {
     }
     
     return filtered
-  }, [products, searchTerm, selectedBrand])
+  }, [products, debouncedSearch, selectedBrand])
 
   // Memoized totals calculation
   const totals = useMemo(() => {
@@ -311,11 +322,24 @@ export function POSInterface() {
     return formattedNumber
   }, [])
 
+  const fetchStoreSettings = useCallback(async () => {
+    try {
+      const { data } = await supabase.from("settings").select("key, value")
+      if (data) {
+        const settings = data.reduce((acc, s) => { acc[s.key] = s.value; return acc }, {} as Record<string, string>)
+        setStoreSettings(settings)
+      }
+    } catch (error) {
+      console.error("Error fetching store settings:", error)
+    }
+  }, [])
+
   useEffect(() => {
     fetchProducts()
     fetchLastBillNumber()
+    fetchStoreSettings()
     setProductImages(getAllProductImages())
-  }, [fetchProducts, fetchLastBillNumber])
+  }, [fetchProducts, fetchLastBillNumber, fetchStoreSettings])
 
   const addToCart = useCallback((product: Product) => {
     const existingItem = cart.find((item) => item.product.id === product.id)
@@ -631,6 +655,14 @@ export function POSInterface() {
     }
   }
 
+  const getUpiQrUrl = () => {
+    const upiId = storeSettings.upi_id
+    if (!upiId) return null
+    const amount = roundedTotal.toFixed(2)
+    const upiString = `upi://pay?pa=${upiId}&am=${amount}&cu=INR`
+    return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(upiString)}`
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full p-6">
       {/* Products Section */}
@@ -754,8 +786,8 @@ export function POSInterface() {
                       key={product.id}
                       className={`cursor-pointer transition-all duration-200 hover:shadow-md border-border relative overflow-hidden flex flex-col justify-between ${
                         cartItem 
-                          ? 'border-violet-500 bg-violet-500/5 dark:bg-violet-950/10 shadow-violet-500/10 shadow-md ring-1 ring-violet-500/30' 
-                          : 'hover:border-violet-500/40 bg-card hover:bg-accent/10'
+                          ? 'border-blue-500 bg-blue-500/5 dark:bg-blue-950/10 shadow-blue-500/10 shadow-md ring-1 ring-blue-500/30' 
+                          : 'hover:border-blue-500/40 bg-card hover:bg-accent/10'
                       }`}
                       onClick={() => addToCart(product)}
                     >
@@ -784,8 +816,9 @@ export function POSInterface() {
                                 {product.brand || 'Generic'}
                               </span>
                               {isLowStock && (
-                                <span className="text-[9px] font-extrabold text-amber-500 flex items-center gap-0.5">
-                                  ⚠️ LOW STOCK ({product.stock_quantity})
+                                <span className="text-[9px] font-extrabold text-amber-500 flex items-center gap-1">
+                                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                                  <span>LOW STOCK ({product.stock_quantity})</span>
                                 </span>
                               )}
                             </div>
@@ -984,7 +1017,7 @@ export function POSInterface() {
                 </div>
               )}
               {selectedCustomer && loyaltyPointsEarned > 0 && (
-                <div className="flex justify-between text-sm text-purple-600">
+                <div className="flex justify-between text-sm text-blue-600">
                   <span>Loyalty Points:</span>
                   <span>+{loyaltyPointsEarned} pts</span>
                 </div>
@@ -1101,6 +1134,42 @@ export function POSInterface() {
               )}
             </div>
 
+            {(() => {
+              const isUpi = paymentMethod === "upi"
+              const upiId = storeSettings.upi_id
+              const showDynamicQr = isUpi && !!upiId
+              const uploadedQr = getStoreQrImage()
+              const effectiveQr = uploadedQr || null
+              const qrImageToDisplay = showDynamicQr ? getUpiQrUrl() : effectiveQr
+
+              if (!qrImageToDisplay) return null
+
+              return (
+                <div className="bg-slate-50 dark:bg-slate-900/40 border border-border rounded-xl p-4 text-center space-y-2 shadow-sm animate-fade-in my-3">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    {showDynamicQr ? "Scan to Pay via UPI" : "Scan QR Code"}
+                  </p>
+                  <div className="bg-white p-2 rounded-lg inline-block border border-gray-100 shadow-inner">
+                    <img
+                      src={qrImageToDisplay}
+                      alt="Checkout QR"
+                      className="w-32 h-32 mx-auto object-contain"
+                    />
+                  </div>
+                  {showDynamicQr && upiId && (
+                    <p className="text-xs font-semibold text-foreground font-mono">
+                      {upiId}
+                    </p>
+                  )}
+                  {showDynamicQr && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Amount: <span className="font-bold text-emerald-500">₹{roundedTotal.toFixed(2)}</span>
+                    </p>
+                  )}
+                </div>
+              )
+            })()}
+
             <Button
               className={`w-full text-lg py-6 ${
                 paymentMethod === "credit"
@@ -1143,7 +1212,7 @@ export function POSInterface() {
         <DialogContent className="max-w-md rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="pb-2 border-b border-border">
             <div className="flex items-center gap-2">
-              <Plus className="h-5 w-5 text-violet-500" />
+              <Plus className="h-5 w-5 text-blue-500" />
               <DialogTitle className="text-lg font-bold">Add New Product</DialogTitle>
             </div>
             <DialogDescription className="text-xs text-muted-foreground">
@@ -1299,7 +1368,7 @@ export function POSInterface() {
                 type="checkbox"
                 checked={newProductForm.price_includes_gst}
                 onChange={e => setNewProductForm({ ...newProductForm, price_includes_gst: e.target.checked })}
-                className="w-4 h-4 rounded accent-violet-600" 
+                className="w-4 h-4 rounded accent-blue-600" 
               />
               <div className="flex-1">
                 <p className="text-xs font-semibold">Price includes GST</p>

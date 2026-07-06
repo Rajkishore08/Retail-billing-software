@@ -28,7 +28,7 @@ function AccessDeniedContent() {
   return (
     <div
       className="min-h-screen flex items-center justify-center relative overflow-hidden"
-      style={{ background: "linear-gradient(145deg,#060612 0%,#0f0a24 50%,#060612 100%)" }}
+      style={{ background: "linear-gradient(145deg,#060612 0%,#080f26 50%,#060612 100%)" }}
     >
       {/* Background orbs */}
       <div
@@ -37,7 +37,7 @@ function AccessDeniedContent() {
       />
       <div
         className="absolute bottom-1/4 right-1/4 w-48 h-48 rounded-full pointer-events-none opacity-15"
-        style={{ background: "radial-gradient(circle,rgba(124,58,237,0.4),transparent 70%)" }}
+        style={{ background: "radial-gradient(circle,rgba(37,99,235,0.4),transparent 70%)" }}
       />
 
       <div className="relative z-10 text-center px-6 max-w-md animate-fade-in-up">
@@ -66,7 +66,7 @@ function AccessDeniedContent() {
         </p>
         <p className="text-slate-500 text-xs mb-8">
           Your current role is{" "}
-          <span className="text-violet-400 font-semibold capitalize">{profile?.role || "unknown"}</span>.
+          <span className="text-blue-400 font-semibold capitalize">{profile?.role || "unknown"}</span>.
           Contact your Admin to request access.
         </p>
 
@@ -75,8 +75,8 @@ function AccessDeniedContent() {
           className="flex items-center gap-3 p-4 rounded-xl mb-8 text-left"
           style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
         >
-          <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center shrink-0">
-            <Shield className="h-5 w-5 text-violet-400" />
+          <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center shrink-0">
+            <Shield className="h-5 w-5 text-blue-400" />
           </div>
           <div>
             <p className="text-sm font-semibold text-white">{profile?.full_name}</p>

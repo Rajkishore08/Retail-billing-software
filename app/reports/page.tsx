@@ -127,18 +127,31 @@ export default function ReportsPage() {
   const fetchMonthComparison = useCallback(async () => {
     setCompLoading(true)
     try {
-      const results: MonthData[] = []
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i)
+      // FIX: Run all 6 month queries in PARALLEL with Promise.all instead of sequential loop.
+      // Old code: for loop with await → 6× round-trip latency (e.g. 6 × 200ms = 1.2s wait).
+      // New code: all 6 fire simultaneously → total wait ≈ 1× round-trip (≈ 200ms).
+      const monthRanges = Array.from({ length: 6 }, (_, i) => {
+        const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - (5 - i))
         const start = new Date(d.getFullYear(), d.getMonth(), 1)
         const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59)
-        const { data } = await supabase.from("transactions").select("total_amount").gte("created_at", start.toISOString()).lte("created_at", end.toISOString()).eq("status", "completed")
-        results.push({
-          month: start.toLocaleDateString("en-IN", { month: "short", year: "2-digit" }),
-          sales: data?.reduce((s, t) => s + (t.total_amount || 0), 0) || 0,
-          transactions: data?.length || 0,
+        return { start, end, label: start.toLocaleDateString("en-IN", { month: "short", year: "2-digit" }) }
+      })
+
+      const results = await Promise.all(
+        monthRanges.map(async ({ start, end, label }) => {
+          const { data } = await supabase
+            .from("transactions")
+            .select("total_amount")
+            .gte("created_at", start.toISOString())
+            .lte("created_at", end.toISOString())
+            .eq("status", "completed")
+          return {
+            month: label,
+            sales: data?.reduce((s, t) => s + (t.total_amount || 0), 0) || 0,
+            transactions: data?.length || 0,
+          }
         })
-      }
+      )
       setMonthComparison(results)
     } finally { setCompLoading(false) }
   }, [])
@@ -183,7 +196,7 @@ export default function ReportsPage() {
 </style></head><body>
 <div class="header">
   <div>
-    <h1>📊 Business Report</h1>
+    <h1><svg style="display:inline-block;width:1.2em;height:1.2em;vertical-align:-0.2em;margin-right:0.2em;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>Business Report</h1>
     <div style="color:#6b7280;font-size:13px;margin-top:4px;">${dateLabel2} &nbsp;·&nbsp; Generated on ${today}</div>
   </div>
   <div style="text-align:right;">
@@ -191,8 +204,8 @@ export default function ReportsPage() {
     <div style="font-size:12px;color:#6b7280;margin-top:2px;">POS System Report</div>
   </div>
 </div>
-
-<h2>📈 Sales Summary</h2>
+ 
+<h2><svg style="display:inline-block;width:1.2em;height:1.2em;vertical-align:-0.2em;margin-right:0.2em;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>Sales Summary</h2>
 <div class="kpi-grid">
   <div class="kpi"><div class="kpi-label">Total Revenue</div><div class="kpi-value">₹${reportData.totalSales.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div></div>
   <div class="kpi"><div class="kpi-label">Total Transactions</div><div class="kpi-value">${reportData.totalTransactions}</div></div>
@@ -201,18 +214,18 @@ export default function ReportsPage() {
   <div class="kpi"><div class="kpi-label">Total Savings Given</div><div class="kpi-value">₹${reportData.totalSavings.toFixed(2)}</div></div>
   <div class="kpi"><div class="kpi-label">Repeat Customers</div><div class="kpi-value">${reportData.customerStats.repeatCustomers}</div></div>
 </div>
-
-<h2>🏆 Top Selling Products</h2>
+ 
+<h2><svg style="display:inline-block;width:1.2em;height:1.2em;vertical-align:-0.2em;margin-right:0.2em;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>Top Selling Products</h2>
 <table><thead><tr><th>#</th><th>Product</th><th>Units Sold</th><th style="text-align:right">Revenue</th></tr></thead><tbody>
 ${reportData.topProducts.slice(0, 10).map((p, i) => `<tr><td>${i + 1}</td><td>${p.name}</td><td>${p.quantity}</td><td style="text-align:right;font-weight:700;">₹${p.revenue.toFixed(2)}</td></tr>`).join("")}
 </tbody></table>
-
-<h2>💳 Payment Methods</h2>
+ 
+<h2><svg style="display:inline-block;width:1.2em;height:1.2em;vertical-align:-0.2em;margin-right:0.2em;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>Payment Methods</h2>
 <table><thead><tr><th>Method</th><th>Transactions</th><th style="text-align:right">Amount</th><th style="text-align:right">Share</th></tr></thead><tbody>
 ${reportData.paymentMethods.map(p => `<tr><td style="text-transform:capitalize;font-weight:600;">${p.method}</td><td>${p.count}</td><td style="text-align:right;">₹${p.amount.toFixed(2)}</td><td style="text-align:right;">${reportData.totalSales > 0 ? ((p.amount / reportData.totalSales) * 100).toFixed(1) : 0}%</td></tr>`).join("")}
 </tbody></table>
-
-<h2>📦 Inventory Summary</h2>
+ 
+<h2><svg style="display:inline-block;width:1.2em;height:1.2em;vertical-align:-0.2em;margin-right:0.2em;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line><polygon points="12 22.08 12 12 3 6.92 3 17.08 12 22.08"></polygon><polygon points="12 12 21 6.92 21 17.08 12 22.08"></polygon><polygon points="12 2 3 6.92 12 12 21 6.92 12 2"></polygon><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>Inventory Summary</h2>
 <div class="kpi-grid">
   <div class="kpi"><div class="kpi-label">Total SKUs</div><div class="kpi-value">${inventoryData.length}</div></div>
   <div class="kpi"><div class="kpi-label">Low Stock Items</div><div class="kpi-value" style="color:#d97706;">${lowStock.length}</div></div>
@@ -220,7 +233,7 @@ ${reportData.paymentMethods.map(p => `<tr><td style="text-transform:capitalize;f
   <div class="kpi"><div class="kpi-label">Total Stock Value (Cost)</div><div class="kpi-value">₹${totalStockValue.toLocaleString("en-IN", { minimumFractionDigits: 0 })}</div></div>
 </div>
 ${lowStock.length > 0 || outOfStock.length > 0 ? `
-<h3>⚠️ Items Needing Reorder</h3>
+<h3><svg style="display:inline-block;width:1.2em;height:1.2em;vertical-align:-0.2em;margin-right:0.2em;color:#d97706;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>Items Needing Reorder</h3>
 <table><thead><tr><th>Product</th><th>Brand</th><th>Stock</th><th>Min Level</th><th style="text-align:right">Status</th></tr></thead><tbody>
 ${[...outOfStock, ...lowStock].slice(0, 20).map(p => `<tr>
   <td>${p.name}</td>
@@ -229,7 +242,7 @@ ${[...outOfStock, ...lowStock].slice(0, 20).map(p => `<tr>
   <td>${p.min_stock_level || 5}</td>
   <td style="text-align:right;"><span class="badge ${p.stock_quantity === 0 ? "badge-red" : "badge-yellow"}">${p.stock_quantity === 0 ? "OUT OF STOCK" : "LOW STOCK"}</span></td>
 </tr>`).join("")}
-</tbody></table>` : "<p style='color:#16a34a;font-weight:600;'>✅ All products are well-stocked.</p>"}
+</tbody></table>` : "<p style='color:#16a34a;font-weight:600;'><svg style='display:inline-block;width:1.2em;height:1.2em;vertical-align:-0.2em;margin-right:0.2em;color:#16a34a;' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M22 11.08V12a10 10 0 1 1-5.93-9.14'></path><polyline points='22 4 12 14.01 9 11.01'></polyline></svg>All products are well-stocked.</p>"}
 
 <h3>All Products</h3>
 <table><thead><tr><th>Product</th><th>Brand</th><th>HSN</th><th>Stock</th><th style="text-align:right">Selling Price</th></tr></thead><tbody>
@@ -240,7 +253,7 @@ ${inventoryData.slice(0, 50).map(p => `<tr>
 </tr>`).join("")}
 </tbody></table>
 
-<h2>📅 Month-over-Month</h2>
+<h2><svg style="display:inline-block;width:1.2em;height:1.2em;vertical-align:-0.2em;margin-right:0.2em;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>Month-over-Month</h2>
 <table><thead><tr><th>Month</th><th style="text-align:right">Revenue</th><th style="text-align:right">Transactions</th><th style="text-align:right">Change</th></tr></thead><tbody>
 ${monthComparison.map((m, i) => {
   const prev = monthComparison[i - 1]
@@ -299,7 +312,7 @@ ${monthComparison.map((m, i) => {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Select value={dateRange} onValueChange={setDateRange}>
-            <SelectTrigger className="w-[140px] h-10 rounded-xl bg-card border-border"><Calendar className="h-4 w-4 mr-2 text-violet-400" /><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[140px] h-10 rounded-xl bg-card border-border"><Calendar className="h-4 w-4 mr-2 text-blue-400" /><SelectValue /></SelectTrigger>
             <SelectContent className="rounded-xl">
               <SelectItem value="7">Last 7 days</SelectItem>
               <SelectItem value="30">Last 30 days</SelectItem>
@@ -322,7 +335,7 @@ ${monthComparison.map((m, i) => {
           <Button onClick={shareWhatsApp} disabled={!reportData} className="h-10 rounded-xl gradient-emerald border-0 shadow-lg glow-emerald text-white font-bold">
             <MessageCircle className="h-4 w-4 mr-2" /> Share
           </Button>
-          <Button onClick={handleExport} disabled={!reportData} className="h-10 rounded-xl gradient-primary border-0 shadow-lg glow-violet text-white font-bold">
+          <Button onClick={handleExport} disabled={!reportData} className="h-10 rounded-xl gradient-primary border-0 shadow-lg glow-blue text-white font-bold">
             <FileText className="h-4 w-4 mr-2" /> Export PDF
           </Button>
         </div>
@@ -337,7 +350,7 @@ ${monthComparison.map((m, i) => {
             {[
               { label: "Total Revenue", val: formatShort(reportData.totalSales), sub: formatCurrency(reportData.totalSales), icon: IndianRupee, color: "#10b981", bg: "rgba(16,185,129,0.15)", glow: "glow-emerald" },
               { label: "Transactions", val: reportData.totalTransactions, sub: "completed bills", icon: ShoppingCart, color: "#3b82f6", bg: "rgba(59,130,246,0.15)", glow: "glow-sky" },
-              { label: "Avg Order Value", val: formatShort(reportData.averageOrderValue), sub: "per transaction", icon: TrendingUp, color: "#8b5cf6", bg: "rgba(139,92,246,0.15)", glow: "glow-violet" },
+              { label: "Avg Order Value", val: formatShort(reportData.averageOrderValue), sub: "per transaction", icon: TrendingUp, color: "#3b82f6", bg: "rgba(59,130,246,0.15)", glow: "glow-blue" },
               { label: "GST Collected", val: formatShort(reportData.totalGST), sub: formatCurrency(reportData.totalGST), icon: Percent, color: "#f97316", bg: "rgba(249,115,22,0.15)", glow: "glow-orange" },
               { label: "Total Savings", val: formatShort(reportData.totalSavings), sub: "given to customers", icon: Award, color: "#ec4899", bg: "rgba(236,72,153,0.15)", glow: "glow-pink" },
               { label: "Returning Cust", val: reportData.customerStats.repeatCustomers, sub: `of ${reportData.customerStats.totalCustomers} total`, icon: Users, color: "#14b8a6", bg: "rgba(20,184,166,0.15)", glow: "glow-teal" },
@@ -414,7 +427,7 @@ ${monthComparison.map((m, i) => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 stagger-8">
             <Card className="border-border bg-card rounded-2xl overflow-hidden">
               <div className="p-5 border-b border-white/5">
-                <h3 className="font-bold flex items-center gap-2"><BarChart3 className="h-4 w-4 text-violet-400" /> Payment Methods</h3>
+                <h3 className="font-bold flex items-center gap-2"><BarChart3 className="h-4 w-4 text-blue-400" /> Payment Methods</h3>
               </div>
               <div className="p-5">
                 {reportData.paymentMethods.length === 0 ? <p className="text-center text-sm text-muted-foreground py-10">No data</p> : (

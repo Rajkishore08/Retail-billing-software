@@ -182,7 +182,7 @@ export default function InventoryPage() {
               </div>
               <h1 className="text-2xl font-bold text-white tracking-tight">Inventory</h1>
             </div>
-            <p className="text-violet-300/70 text-sm font-medium">
+            <p className="text-sky-300/70 text-sm font-medium">
               Monitor, adjust, and track stock movements in real time.
             </p>
           </div>
@@ -202,9 +202,9 @@ export default function InventoryPage() {
         {[
           {
             label: "Total Products", val: products.length, icon: Package,
-            gradient: "linear-gradient(135deg,#7c3aed,#5b21b6)",
-            iconColor: "#c4b5fd", iconBg: "rgba(124,58,237,0.15)",
-            accent: "stat-card-violet", glow: "glow-violet",
+            gradient: "linear-gradient(135deg,#1d4ed8,#1e3a8a)",
+            iconColor: "#93c5fd", iconBg: "rgba(37,99,235,0.15)",
+            accent: "stat-card-blue", glow: "glow-blue",
           },
           {
             label: "Total Units in Stock", val: totalUnits, icon: Box,
@@ -380,7 +380,7 @@ export default function InventoryPage() {
                     <Plus className="h-3.5 w-3.5 mr-1.5" /> Adjust
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => openHistory(p)}
-                    className="h-9 px-3 rounded-xl hover:border-violet-500/50 hover:text-violet-400 hover:bg-violet-500/5 shrink-0 transition-colors">
+                    className="h-9 px-3 rounded-xl hover:border-blue-500/50 hover:text-blue-400 hover:bg-blue-500/5 shrink-0 transition-colors">
                     <History className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -543,8 +543,8 @@ export default function InventoryPage() {
         <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", paddingBottom: "1rem" }}>
             <DialogTitle className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl" style={{ background: "rgba(124,58,237,0.2)" }}>
-                <History className="h-4 w-4 text-violet-400 m-auto mt-2.5" />
+              <div className="w-9 h-9 rounded-xl" style={{ background: "rgba(37,99,235,0.2)" }}>
+                <History className="h-4 w-4 text-blue-400 m-auto mt-2.5" />
               </div>
               <div>
                 <p className="font-bold text-base">Stock History</p>

@@ -16,13 +16,13 @@ const CARDS = [
     label: "Total Products",
     sub: (v: number) => v > 0 ? "Items in inventory" : "Add products to start",
     icon: Package,
-    gradient: "linear-gradient(135deg,#7c3aed 0%,#5b21b6 100%)",
-    glow: "glow-violet",
-    accent: "stat-card-violet",
-    iconBg: "rgba(124,58,237,0.18)",
-    iconColor: "#c4b5fd",
+    gradient: "linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%)",
+    glow: "glow-blue",
+    accent: "stat-card-blue",
+    iconBg: "rgba(37,99,235,0.18)",
+    iconColor: "#93c5fd",
     change: "+12 this week",
-    changeBg: "rgba(124,58,237,0.15)",
+    changeBg: "rgba(37,99,235,0.15)",
   },
   {
     key: "customers",
@@ -58,7 +58,7 @@ const ACTION_COLOR: Record<string, string> = {
   UPDATED:        "#7dd3fc",
   DELETED:        "#fca5a5",
   STOCK_UPDATED:  "#fcd34d",
-  PRICE_UPDATED:  "#c4b5fd",
+  PRICE_UPDATED:  "#93c5fd",
   GST_UPDATED:    "#67e8f9",
   BARCODE_UPDATED:"#9ca3af",
   IMAGE_UPDATED:  "#fbbf24",
@@ -68,7 +68,7 @@ const ACTION_BG: Record<string, string> = {
   UPDATED:        "rgba(2,132,199,0.12)",
   DELETED:        "rgba(225,29,72,0.12)",
   STOCK_UPDATED:  "rgba(217,119,6,0.12)",
-  PRICE_UPDATED:  "rgba(124,58,237,0.12)",
+  PRICE_UPDATED:  "rgba(37,99,235,0.12)",
   GST_UPDATED:    "rgba(8,145,178,0.12)",
   BARCODE_UPDATED:"rgba(107,114,128,0.12)",
   IMAGE_UPDATED:  "rgba(245,158,11,0.12)",
@@ -165,7 +165,7 @@ export function DashboardStats() {
           size="sm"
           onClick={refresh}
           disabled={loading}
-          className="h-9 px-4 text-xs gap-2 text-muted-foreground hover:text-foreground rounded-xl border border-border hover:border-violet-500/40"
+          className="h-9 px-4 text-xs gap-2 text-muted-foreground hover:text-foreground rounded-xl border border-border hover:border-blue-500/40"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
           Refresh
@@ -233,13 +233,13 @@ export function DashboardStats() {
           >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-violet-500/20 flex items-center justify-center">
-                  <Clock className="h-3.5 w-3.5 text-violet-400" />
+                <div className="w-7 h-7 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <Clock className="h-3.5 w-3.5 text-blue-400" />
                 </div>
                 <h3 className="font-bold text-sm">Recent Product Changes</h3>
               </div>
               <Link href="/products?tab=history">
-                <Button variant="ghost" size="sm" className="h-7 text-xs hover:text-violet-400 px-2 rounded-lg">
+                <Button variant="ghost" size="sm" className="h-7 text-xs hover:text-blue-400 px-2 rounded-lg">
                   View all
                 </Button>
               </Link>

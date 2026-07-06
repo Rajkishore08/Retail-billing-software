@@ -14,7 +14,7 @@
     --card-foreground: 230 25% 10%;
     --popover: 0 0% 100%;
     --popover-foreground: 230 25% 10%;
-    --primary: 262 80% 56%;
+    --primary: 221.2 83.2% 53.3%;
     --primary-foreground: 0 0% 100%;
     --secondary: 240 12% 94%;
     --secondary-foreground: 230 25% 20%;
@@ -26,21 +26,21 @@
     --destructive-foreground: 0 0% 100%;
     --border: 240 10% 88%;
     --input: 240 10% 88%;
-    --ring: 262 80% 56%;
+    --ring: 221.2 83.2% 53.3%;
     --radius: 0.875rem;
-    --chart-1: 262 80% 56%;
+    --chart-1: 221.2 83.2% 53.3%;
     --chart-2: 156 68% 40%;
     --chart-3: 38 92% 50%;
     --chart-4: 330 78% 54%;
     --chart-5: 198 80% 50%;
     --sidebar-background: 230 30% 8%;
     --sidebar-foreground: 220 20% 95%;
-    --sidebar-primary: 262 80% 65%;
+    --sidebar-primary: 221.2 83.2% 53.3%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 230 25% 14%;
     --sidebar-accent-foreground: 220 20% 95%;
     --sidebar-border: 230 20% 14%;
-    --sidebar-ring: 262 80% 65%;
+    --sidebar-ring: 221.2 83.2% 53.3%;
   }
 
   .dark {
@@ -51,7 +51,7 @@
     --card-foreground: 220 20% 96%;
     --popover: 230 25% 10%;
     --popover-foreground: 220 20% 96%;
-    --primary: 262 80% 65%;
+    --primary: 217.2 91.2% 59.8%;
     --primary-foreground: 0 0% 100%;
     --secondary: 230 22% 16%;
     --secondary-foreground: 220 20% 86%;
@@ -63,20 +63,20 @@
     --destructive-foreground: 0 0% 100%;
     --border: 230 20% 17%;
     --input: 230 20% 17%;
-    --ring: 262 80% 65%;
-    --chart-1: 262 80% 65%;
+    --ring: 217.2 91.2% 59.8%;
+    --chart-1: 217.2 91.2% 59.8%;
     --chart-2: 156 68% 46%;
     --chart-3: 38 92% 58%;
     --chart-4: 330 78% 60%;
     --chart-5: 198 80% 56%;
     --sidebar-background: 230 32% 6%;
     --sidebar-foreground: 220 20% 95%;
-    --sidebar-primary: 262 80% 68%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 230 25% 12%;
     --sidebar-accent-foreground: 220 20% 95%;
     --sidebar-border: 230 22% 13%;
-    --sidebar-ring: 262 80% 68%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 
@@ -138,7 +138,7 @@
 
 /* ─── Premium Gradients ──────────────────────────────────────────────────── */
 .gradient-primary {
-  background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%);
 }
 .gradient-emerald {
   background: linear-gradient(135deg, #059669 0%, #047857 100%);
@@ -165,18 +165,18 @@
   background: linear-gradient(180deg, #060612 0%, #0c0c1e 40%, #080814 100%);
 }
 .gradient-mesh {
-  background: linear-gradient(135deg, #0f0a1e 0%, #0e1530 35%, #0a0f2e 65%, #0f0a1e 100%);
+  background: linear-gradient(135deg, #050a1e 0%, #051430 35%, #050f2e 65%, #050a1e 100%);
 }
 .gradient-hero {
-  background: linear-gradient(135deg, #13082e 0%, #1a1052 40%, #0e1530 70%, #0a0a1e 100%);
+  background: linear-gradient(135deg, #05082e 0%, #051052 40%, #051530 70%, #050a1e 100%);
 }
 .gradient-page-header {
-  background: linear-gradient(135deg, #1e1040 0%, #2d1b69 50%, #1a0e3a 100%);
+  background: linear-gradient(135deg, #051040 0%, #051b69 50%, #050e3a 100%);
 }
 
 /* ─── Text Gradients ─────────────────────────────────────────────────────── */
 .text-gradient-primary {
-  background: linear-gradient(135deg, #c4b5fd 0%, #8b5cf6 50%, #7c3aed 100%);
+  background: linear-gradient(135deg, #93c5fd 0%, #3b82f6 50%, #1d4ed8 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -202,7 +202,10 @@
 
 /* ─── Glow Effects ───────────────────────────────────────────────────────── */
 .glow-violet {
-  box-shadow: 0 0 30px rgba(124, 58, 237, 0.28), 0 4px 20px rgba(0, 0, 0, 0.32);
+  box-shadow: 0 0 30px rgba(29, 78, 216, 0.28), 0 4px 20px rgba(0, 0, 0, 0.32);
+}
+.glow-blue {
+  box-shadow: 0 0 30px rgba(29, 78, 216, 0.28), 0 4px 20px rgba(0, 0, 0, 0.32);
 }
 .glow-emerald {
   box-shadow: 0 0 30px rgba(5, 150, 105, 0.28), 0 4px 20px rgba(0, 0, 0, 0.32);
@@ -234,8 +237,8 @@
 
 /* Sidebar nav active item */
 .nav-active-glow {
-  box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.40),
-              0 0 20px rgba(139, 92, 246, 0.15);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.40),
+              0 0 20px rgba(37, 99, 235, 0.15);
 }
 
 /* ─── Card Hover ─────────────────────────────────────────────────────────── */
@@ -249,7 +252,8 @@
 }
 
 /* ─── Stat Card Accents ──────────────────────────────────────────────────── */
-.stat-card-violet { border-top: 3px solid #7c3aed; }
+.stat-card-violet { border-top: 3px solid #1d4ed8; }
+.stat-card-blue { border-top: 3px solid #1d4ed8; }
 .stat-card-emerald { border-top: 3px solid #059669; }
 .stat-card-amber  { border-top: 3px solid #d97706; }
 .stat-card-sky    { border-top: 3px solid #0284c7; }
@@ -356,11 +360,11 @@
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(124, 58, 237, 0.30);
+  background: rgba(37, 99, 235, 0.30);
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(124, 58, 237, 0.52);
+  background: rgba(37, 99, 235, 0.52);
 }
 
 /* ─── Smooth Theme Transitions ───────────────────────────────────────────── */
@@ -372,7 +376,8 @@ button, a, [role="button"] {
 }
 
 /* ─── Product Image Placeholder Colors ───────────────────────────────────── */
-.img-placeholder-violet  { background: linear-gradient(135deg, #7c3aed, #5b21b6); }
+.img-placeholder-violet  { background: linear-gradient(135deg, #1d4ed8, #1e3a8a); }
+.img-placeholder-blue    { background: linear-gradient(135deg, #1d4ed8, #1e3a8a); }
 .img-placeholder-emerald { background: linear-gradient(135deg, #059669, #047857); }
 .img-placeholder-amber   { background: linear-gradient(135deg, #d97706, #b45309); }
 .img-placeholder-sky     { background: linear-gradient(135deg, #0284c7, #075985); }
@@ -383,7 +388,7 @@ button, a, [role="button"] {
 /* ─── Input Focus Ring ───────────────────────────────────────────────────── */
 input:focus-visible, textarea:focus-visible, select:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2.5px rgba(124, 58, 237, 0.40);
+  box-shadow: 0 0 0 2.5px rgba(37, 99, 235, 0.40);
 }
 
 /* ─── Badge Pill ─────────────────────────────────────────────────────────── */
@@ -408,7 +413,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, rgba(124,58,237,0.6), rgba(59,130,246,0.35));
+  background: linear-gradient(135deg, rgba(29,78,216,0.6), rgba(59,130,246,0.35));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
@@ -422,13 +427,13 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   border-radius: 1.25rem;
   padding: 1.75rem 2rem;
   overflow: hidden;
-  background: linear-gradient(135deg, #1e1040 0%, #2d1b69 50%, #1a0e3a 100%);
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #0f1e56 100%);
 }
 .page-header-banner::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 80% 80% at 80% -20%, rgba(124,58,237,0.35), transparent),
+  background: radial-gradient(ellipse 80% 80% at 80% -20%, rgba(29,78,216,0.35), transparent),
               radial-gradient(ellipse 60% 60% at -10% 80%, rgba(5,150,105,0.2), transparent);
   pointer-events: none;
 }
@@ -448,15 +453,15 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 
 /* ─── Upload Zone ────────────────────────────────────────────────────────── */
 .upload-zone {
-  border: 2px dashed rgba(124,58,237,0.35);
+  border: 2px dashed rgba(29,78,216,0.35);
   border-radius: 0.875rem;
-  background: rgba(124,58,237,0.04);
+  background: rgba(29,78,216,0.04);
   transition: all 0.2s ease;
   cursor: pointer;
 }
 .upload-zone:hover {
-  border-color: rgba(124,58,237,0.6);
-  background: rgba(124,58,237,0.08);
+  border-color: rgba(29,78,216,0.6);
+  background: rgba(29,78,216,0.08);
 }
 
 /* ─── Section Label ──────────────────────────────────────────────────────── */

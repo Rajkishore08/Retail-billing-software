@@ -49,7 +49,7 @@ const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount)
 
 const getLoyaltyTier = (points: number) => {
-  if (points >= 500) return { name: "Platinum", gradient: "gradient-primary", glow: "glow-violet", text: "text-white", icon: Crown }
+  if (points >= 500) return { name: "Platinum", gradient: "gradient-primary", glow: "glow-blue", text: "text-white", icon: Crown }
   if (points >= 200) return { name: "Gold", gradient: "gradient-amber", glow: "glow-amber", text: "text-white", icon: Star }
   if (points >= 50) return { name: "Silver", gradient: "gradient-sky", glow: "glow-sky", text: "text-white", icon: Award }
   return { name: "Bronze", gradient: "bg-slate-700", glow: "", text: "text-slate-200", icon: Gift }
@@ -58,7 +58,7 @@ const getLoyaltyTier = (points: number) => {
 const initials = (name: string) => name.split(/\s+/).map(w => w[0]).join("").slice(0,2).toUpperCase()
 
 const placeholderClass = (name: string) => {
-  const classes = ["img-placeholder-violet","img-placeholder-emerald","img-placeholder-amber","img-placeholder-sky","img-placeholder-rose"]
+  const classes = ["img-placeholder-blue","img-placeholder-emerald","img-placeholder-amber","img-placeholder-sky","img-placeholder-rose"]
   return classes[(name.charCodeAt(0) || 0) % classes.length]
 }
 
@@ -70,6 +70,7 @@ export default function CustomersPage() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
   
   const [stats, setStats] = useState({
     totalCustomers: 0,
@@ -117,12 +118,20 @@ export default function CustomersPage() {
     }
   }
 
+  const ITEMS_PER_PAGE = 12
+
   const filteredCustomers = customers.filter(
     (c) =>
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.phone.includes(searchTerm) ||
       (c.email || "").toLowerCase().includes(searchTerm.toLowerCase()),
   )
+
+  const paginatedCustomers = filteredCustomers.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  )
+  const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE)
 
   const resetForm = () => {
     setFormData({ name: "", phone: "", email: "", address: "", date_of_birth: "" })
@@ -262,7 +271,7 @@ export default function CustomersPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {[
           { label: "Total Customers", val: stats.totalCustomers, icon: Users, color: "#38bdf8", bg: "rgba(2,132,199,0.15)", glow: "glow-sky" },
-          { label: "Loyalty Points", val: stats.totalLoyaltyPoints, icon: Gift, color: "#a78bfa", bg: "rgba(124,58,237,0.15)", glow: "glow-violet" },
+          { label: "Loyalty Points", val: stats.totalLoyaltyPoints, icon: Gift, color: "#60a5fa", bg: "rgba(59,130,246,0.15)", glow: "glow-blue" },
           { label: "Avg Spent", val: formatCurrency(stats.averageSpent), icon: TrendingUp, color: "#34d399", bg: "rgba(5,150,105,0.15)", glow: "glow-emerald" },
           { label: "Credit Due", val: formatCurrency(stats.totalOutstandingCredit), icon: CreditCard, color: "#fb7185", bg: "rgba(225,29,72,0.15)", glow: stats.totalOutstandingCredit > 0 ? "glow-rose" : "" },
         ].map((s, i) => (
@@ -286,11 +295,11 @@ export default function CustomersPage() {
         <Input
           placeholder="Search by name, phone, or email…"
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
           className="pl-10 h-11 rounded-xl bg-card border-border"
         />
         {searchTerm && (
-          <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+          <button onClick={() => { setSearchTerm(""); setCurrentPage(1); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         )}
@@ -304,82 +313,111 @@ export default function CustomersPage() {
           <p className="text-muted-foreground text-sm mb-6">Add your first customer to get started.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {filteredCustomers.map((customer, i) => {
-            const tier = getLoyaltyTier(customer.loyalty_points || 0)
-            const TierIcon = tier.icon
-            const hasCredit = (customer.outstanding_credit || 0) > 0
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {paginatedCustomers.map((customer, i) => {
+              const tier = getLoyaltyTier(customer.loyalty_points || 0)
+              const TierIcon = tier.icon
+              const hasCredit = (customer.outstanding_credit || 0) > 0
 
-            return (
-              <Card key={customer.id} className="border-border bg-card rounded-2xl overflow-hidden card-hover" style={{ animationDelay: `${i*0.05}s` }}>
-                <CardContent className="p-0">
-                  {/* Top Banner */}
-                  <div className={`h-16 w-full ${placeholderClass(customer.name)} opacity-80 relative`} />
-                  
-                  <div className="px-5 pb-5">
-                    {/* Avatar & Actions */}
-                    <div className="flex justify-between items-start -mt-8 mb-3">
-                      <div className={`w-16 h-16 rounded-xl ${placeholderClass(customer.name)} shadow-lg border-2 border-background flex items-center justify-center text-xl font-bold text-white`}>
-                        {initials(customer.name)}
+              return (
+                <Card key={customer.id} className="border-border bg-card rounded-2xl overflow-hidden card-hover" style={{ animationDelay: `${i*0.05}s` }}>
+                  <CardContent className="p-0">
+                    {/* Top Banner */}
+                    <div className={`h-16 w-full ${placeholderClass(customer.name)} opacity-80 relative`} />
+                    
+                    <div className="px-5 pb-5">
+                      {/* Avatar & Actions */}
+                      <div className="flex justify-between items-start -mt-8 mb-3">
+                        <div className={`w-16 h-16 rounded-xl ${placeholderClass(customer.name)} shadow-lg border-2 border-background flex items-center justify-center text-xl font-bold text-white`}>
+                          {initials(customer.name)}
+                        </div>
+                        <div className="flex gap-1.5 mt-9">
+                          <Button size="icon" variant="ghost" onClick={() => { setEditingCustomer(customer); setFormData({name:customer.name, phone:customer.phone, email:customer.email||"", address:customer.address||"", date_of_birth:customer.date_of_birth||""}); setShowAddDialog(true) }} className="h-7 w-7 rounded-lg text-slate-400 hover:text-white bg-white/5">
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" onClick={() => handleDelete(customer.id)} className="h-7 w-7 rounded-lg text-slate-400 hover:text-rose-400 bg-white/5">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex gap-1.5 mt-9">
-                        <Button size="icon" variant="ghost" onClick={() => { setEditingCustomer(customer); setFormData({name:customer.name, phone:customer.phone, email:customer.email||"", address:customer.address||"", date_of_birth:customer.date_of_birth||""}); setShowAddDialog(true) }} className="h-7 w-7 rounded-lg text-slate-400 hover:text-white bg-white/5">
-                          <Edit className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button size="icon" variant="ghost" onClick={() => handleDelete(customer.id)} className="h-7 w-7 rounded-lg text-slate-400 hover:text-rose-400 bg-white/5">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
 
-                    {/* Name & Tier */}
-                    <div className="mb-4">
-                      <h3 className="font-bold text-lg leading-tight truncate">{customer.name}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${tier.gradient} ${tier.text}`}>
-                          <TierIcon className="h-2.5 w-2.5" /> {tier.name}
-                        </span>
-                        {hasCredit && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500 text-white shadow-lg shadow-rose-500/20">
-                            <AlertTriangle className="h-2.5 w-2.5" /> Credit Due
+                      {/* Name & Tier */}
+                      <div className="mb-4">
+                        <h3 className="font-bold text-lg leading-tight truncate">{customer.name}</h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${tier.gradient} ${tier.text}`}>
+                            <TierIcon className="h-2.5 w-2.5" /> {tier.name}
                           </span>
-                        )}
+                          {hasCredit && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500 text-white shadow-lg shadow-rose-500/20">
+                              <AlertTriangle className="h-2.5 w-2.5" /> Credit Due
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Contact Info */}
-                    <div className="space-y-1.5 mb-5 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 shrink-0" />{customer.phone}</div>
-                      {customer.email && <div className="flex items-center gap-2 truncate"><Mail className="h-3.5 w-3.5 shrink-0" />{customer.email}</div>}
-                    </div>
-
-                    {/* Mini Stats Grid */}
-                    <div className="grid grid-cols-2 gap-3 mb-5 p-3 rounded-xl bg-white/5 border border-white/5">
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-0.5">Points</p>
-                        <p className="font-semibold text-violet-400">{customer.loyalty_points || 0}</p>
+                      {/* Contact Info */}
+                      <div className="space-y-1.5 mb-5 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 shrink-0" />{customer.phone}</div>
+                        {customer.email && <div className="flex items-center gap-2 truncate"><Mail className="h-3.5 w-3.5 shrink-0" />{customer.email}</div>}
                       </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-0.5">Spent</p>
-                        <p className="font-semibold text-emerald-400">{formatCurrency(customer.total_spent || 0)}</p>
-                      </div>
-                    </div>
 
-                    {/* Credit Button */}
-                    <Button 
-                      onClick={() => openCreditDialog(customer)}
-                      variant={hasCredit ? "destructive" : "secondary"}
-                      className={`w-full h-9 text-xs rounded-xl font-bold ${hasCredit ? "bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:bg-rose-500/30" : ""}`}
-                    >
-                      <CreditCard className="h-3.5 w-3.5 mr-2" />
-                      {hasCredit ? `Pay ${formatCurrency(customer.outstanding_credit)}` : "Credit Ledger"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+                      {/* Mini Stats Grid */}
+                      <div className="grid grid-cols-2 gap-3 mb-5 p-3 rounded-xl bg-white/5 border border-white/5">
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-0.5">Points</p>
+                          <p className="font-semibold text-blue-400">{customer.loyalty_points || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-0.5">Spent</p>
+                          <p className="font-semibold text-emerald-400">{formatCurrency(customer.total_spent || 0)}</p>
+                        </div>
+                      </div>
+
+                      {/* Credit Button */}
+                      <Button 
+                        onClick={() => openCreditDialog(customer)}
+                        variant={hasCredit ? "destructive" : "secondary"}
+                        className={`w-full h-9 text-xs rounded-xl font-bold ${hasCredit ? "bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:bg-rose-500/30" : ""}`}
+                      >
+                        <CreditCard className="h-3.5 w-3.5 mr-2" />
+                        {hasCredit ? `Pay ${formatCurrency(customer.outstanding_credit)}` : "Credit Ledger"}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+          
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3 pt-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+                className="h-9 rounded-xl"
+              >
+                Prev
+              </Button>
+              <span className="text-sm font-medium min-w-[100px] text-center">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages}
+                className="h-9 rounded-xl"
+              >
+                Next
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       {/* ── Add / Edit Dialog ─────────────────────────────── */}

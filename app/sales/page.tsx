@@ -63,7 +63,7 @@ export default function SalesPage() {
     } finally { setLoading(false) }
   }
 
-  const handleViewTransaction = (transaction: Transaction) => {
+  function handleViewTransaction(transaction: Transaction) {
     setSelectedTransaction(transaction)
     setIsModalOpen(true)
   }
@@ -91,7 +91,7 @@ export default function SalesPage() {
     const map: Record<string, { bg: string; text: string }> = {
       cash: { bg: "bg-emerald-500/20", text: "text-emerald-400" },
       card: { bg: "bg-blue-500/20", text: "text-blue-400" },
-      upi: { bg: "bg-violet-500/20", text: "text-violet-400" },
+      upi: { bg: "bg-blue-500/20", text: "text-blue-400" },
       credit: { bg: "bg-orange-500/20", text: "text-orange-400" }
     }
     const style = map[method] || { bg: "bg-white/10", text: "text-slate-300" }
@@ -134,7 +134,7 @@ export default function SalesPage() {
         {[
           { label: "Today's Sales", val: formatCurrency(stats.todaySales), icon: IndianRupee, color: "#34d399", bg: "rgba(5,150,105,0.15)", glow: "glow-emerald" },
           { label: "This Week", val: formatCurrency(stats.weekSales), icon: TrendingUp, color: "#38bdf8", bg: "rgba(2,132,199,0.15)", glow: "glow-sky" },
-          { label: "This Month", val: formatCurrency(stats.monthSales), icon: Calendar, color: "#a78bfa", bg: "rgba(124,58,237,0.15)", glow: "glow-violet" },
+          { label: "This Month", val: formatCurrency(stats.monthSales), icon: Calendar, color: "#60a5fa", bg: "rgba(59,130,246,0.15)", glow: "glow-blue" },
           { label: "Total Orders (30d)", val: stats.totalTransactions, icon: ShoppingCart, color: "#fb923c", bg: "rgba(234,88,12,0.15)", glow: "glow-orange" },
         ].map((s, i) => (
           <Card key={i} className={`border-0 overflow-hidden card-hover stagger-${i+1} ${s.glow}`} style={{ background: "rgba(255,255,255,0.03)" }}>
@@ -168,12 +168,12 @@ export default function SalesPage() {
 
         <Card className="border-border bg-card rounded-2xl overflow-hidden relative">
           <div className="absolute top-0 right-0 p-4 opacity-10">
-            <IndianRupee className="w-24 h-24 text-violet-500" />
+            <IndianRupee className="w-24 h-24 text-blue-500" />
           </div>
           <CardContent className="p-5 relative z-10">
             <p className="text-sm text-muted-foreground mb-1">Top Payment Method</p>
-            <p className="text-3xl font-bold font-mono text-violet-400 mb-2 capitalize">{stats.topPaymentMethod}</p>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-violet-500/80">
+            <p className="text-3xl font-bold font-mono text-blue-400 mb-2 capitalize">{stats.topPaymentMethod}</p>
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-500/80">
               <ArrowUpRight className="h-3.5 w-3.5" /> Most Popular
             </div>
           </CardContent>
@@ -257,7 +257,10 @@ export default function SalesPage() {
                     </div>
                     <div>
                       <p className="font-bold font-mono text-sm">{t.invoice_number}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{t.customer?.name || t.customer_name || "Walk-in Customer"}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {t.customer?.name || t.customer_name || "Walk-in Customer"}
+                        <span className="md:hidden block mt-0.5 text-[10px] text-muted-foreground/80">{formatDate(t.created_at)}</span>
+                      </p>
                     </div>
                   </div>
 

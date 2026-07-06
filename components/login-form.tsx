@@ -69,14 +69,14 @@ export function LoginForm() {
 
         {/* Logo */}
         <div className="flex items-center gap-4 z-10 animate-fade-in-down">
-          <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center shadow-2xl glow-violet animate-float">
+          <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center shadow-2xl glow-blue animate-float">
             <ShoppingBag className="h-6 w-6 text-white" />
           </div>
           <div>
             <h1 className="text-white font-bold text-xl leading-tight tracking-tight">Techno Bills</h1>
             <div className="flex items-center gap-1.5 mt-0.5">
               <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
-              <p className="text-violet-400 text-xs font-semibold">POS System v2.0</p>
+              <p className="text-blue-400 text-xs font-semibold">POS System v2.0</p>
             </div>
           </div>
         </div>
@@ -115,9 +115,9 @@ export function LoginForm() {
               >
                 <div
                   className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ background: "rgba(124,58,237,0.15)", border: "1px solid rgba(124,58,237,0.28)" }}
+                  style={{ background: "rgba(37,99,235,0.15)", border: "1px solid rgba(37,99,235,0.28)" }}
                 >
-                  <Icon className="h-4.5 w-4.5 text-violet-400 h-[18px] w-[18px]" />
+                  <Icon className="h-4.5 w-4.5 text-blue-400 h-[18px] w-[18px]" />
                 </div>
                 <div>
                   <p className="text-white text-sm font-semibold leading-tight">{label}</p>
@@ -149,7 +149,7 @@ export function LoginForm() {
         <div className="w-full max-w-[380px] animate-fade-in-up relative z-10">
           {/* Mobile logo */}
           <div className="flex items-center gap-3 mb-8 lg:hidden">
-            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center glow-violet">
+            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center glow-blue">
               <ShoppingBag className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -160,7 +160,15 @@ export function LoginForm() {
 
           {/* Heading */}
           <div className="mb-8">
-            <h2 className="text-3xl font-bold tracking-tight mb-1.5">Welcome back 👋</h2>
+            <h2 className="text-3xl font-bold tracking-tight mb-1.5 flex items-center gap-2">
+              Welcome back
+              <svg className="h-7 w-7 text-amber-400 animate-bounce" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ transformOrigin: "bottom center" }}>
+                <path d="M18 11V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v5" />
+                <path d="M14 10V5a2 2 0 0 0-2-2 2 2 0 0 0-2 2v5" />
+                <path d="M10 10.5V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v4.5" />
+                <path d="M6 14v-1.5a1.5 1.5 0 0 0-3 0V18a6 6 0 0 0 6 6h4a6 6 0 0 0 6-6V11a2 2 0 0 0-2-2 2 2 0 0 0-2 2" />
+              </svg>
+            </h2>
             <p className="text-muted-foreground text-sm">Sign in to access your POS dashboard</p>
           </div>
 
@@ -228,7 +236,7 @@ export function LoginForm() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full h-11 rounded-xl font-semibold text-sm gradient-primary border-0 shadow-lg hover:opacity-90 glow-violet mt-2"
+                className="w-full h-11 rounded-xl font-semibold text-sm gradient-primary border-0 shadow-lg hover:opacity-90 glow-blue mt-2"
               >
                 {loading ? (
                   <div className="flex items-center gap-2">

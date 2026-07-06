@@ -117,9 +117,8 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
   const getUpiQrUrl = () => {
     const upiId = storeSettings.upi_id
     if (!upiId) return null
-    const storeName = storeSettings.store_name || "Store"
     const amount = transaction.total_amount.toFixed(2)
-    const upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(storeName)}&am=${amount}&cu=INR&tn=Bill%20${transaction.invoice_number}`
+    const upiString = `upi://pay?pa=${upiId}&am=${amount}&cu=INR`
     return `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(upiString)}`
   }
 
@@ -145,17 +144,14 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
     : ""
 
   const upiQrUrl = getUpiQrUrl()
-  const upiQrHtml = effectiveQr
+  const isUpi = transaction.payment_method === "upi"
+  const showDynamicQr = isUpi && !!storeSettings.upi_id
+  const qrImageToDisplay = showDynamicQr ? upiQrUrl : effectiveQr
+  const upiQrHtml = qrImageToDisplay
     ? `<div style="text-align:center;margin:10px 0;">
-        <div style="font-size:11px;font-weight:bold;margin-bottom:4px;">Scan to Pay via UPI</div>
-        <img src="${effectiveQr}" alt="UPI QR" style="width:100px;height:100px;" />
-        <div style="font-size:10px;color:#666;margin-top:2px;">${storeSettings.upi_id}</div>
-       </div>`
-    : upiQrUrl
-    ? `<div style="text-align:center;margin:10px 0;">
-        <div style="font-size:11px;font-weight:bold;margin-bottom:4px;">Scan to Pay via UPI</div>
-        <img src="${upiQrUrl}" alt="UPI QR" style="width:100px;height:100px;" />
-        <div style="font-size:10px;color:#666;margin-top:2px;">${storeSettings.upi_id}</div>
+        <div style="font-size:11px;font-weight:bold;margin-bottom:4px;">${showDynamicQr ? "Scan to Pay via UPI" : "Scan QR Code"}</div>
+        <img src="${qrImageToDisplay}" alt="QR Code" style="width:100px;height:100px;" />
+        ${showDynamicQr && storeSettings.upi_id ? `<div style="font-size:10px;color:#666;margin-top:2px;">${storeSettings.upi_id}</div>` : ""}
        </div>`
     : ""
 
@@ -202,7 +198,7 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
       <div class="row"><span>Payment:</span><span>${transaction.payment_method.toUpperCase()}</span></div>
       ${transaction.cash_received ? `<div class="row"><span>Cash:</span><span>₹${transaction.cash_received.toFixed(2)}</span></div><div class="row"><span>Change:</span><span>₹${(transaction.change_amount || 0).toFixed(2)}</span></div>` : ""}
       ${upiQrHtml}
-      ${transaction.customer && transaction.loyalty_points_earned > 0 ? `<div class="loyalty-box"><div class="bold">⭐ LOYALTY POINTS</div><div>Earned: +${transaction.loyalty_points_earned}</div></div>` : ""}
+      ${transaction.customer && transaction.loyalty_points_earned > 0 ? `<div class="loyalty-box"><div class="bold"><svg style="display:inline-block;width:1.2em;height:1.2em;vertical-align:-0.2em;margin-right:0.2em;" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>LOYALTY POINTS</div><div>Earned: +${transaction.loyalty_points_earned}</div></div>` : ""}
       <div class="line"></div>
       <div class="center" style="font-size:11px;">${storeSettings.receipt_footer || "Thank You! Visit Again!"}</div>
     </body></html>`
@@ -211,10 +207,8 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
   const generatePDFReceiptHTML = () => {
     const savings = calculateTotalSavings()
     const pdfLogoHtml = effectiveLogo ? `<img src="${effectiveLogo}" class="logo" alt="Logo" onerror="this.style.display='none'" /><br/>` : ""
-    const pdfQrHtml = effectiveQr
-      ? `<div class="qr-section"><div style="font-size:13px;font-weight:bold;margin-bottom:8px;">💳 Pay via UPI / Scan QR</div><img src="${effectiveQr}" width="110" height="110" alt="UPI QR"/><div style="font-size:12px;color:#555;margin-top:4px;">${storeSettings.upi_id}</div></div>`
-      : upiQrUrl
-      ? `<div class="qr-section"><div style="font-size:13px;font-weight:bold;margin-bottom:8px;">💳 Pay via UPI / Scan QR</div><img src="${upiQrUrl}" width="110" height="110" alt="UPI QR"/><div style="font-size:12px;color:#555;margin-top:4px;">${storeSettings.upi_id}</div></div>`
+    const pdfQrHtml = qrImageToDisplay
+      ? `<div class="qr-section"><div style="font-size:13px;font-weight:bold;margin-bottom:8px;"><svg style="display:inline-block;width:1.2em;height:1.2em;vertical-align:-0.2em;margin-right:0.2em;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>${showDynamicQr ? "Pay via UPI" : "Scan QR Code"}</div><img src="${qrImageToDisplay}" width="110" height="110" alt="QR Code"/>${showDynamicQr && storeSettings.upi_id ? `<div style="font-size:12px;color:#555;margin-top:4px;">${storeSettings.upi_id}</div>` : ""}</div>`
       : ""
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice - ${transaction.invoice_number}</title>
       <style>
@@ -259,13 +253,13 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
         <tr><td>GST Amount</td><td style="text-align:right">₹${transaction.gst_amount.toFixed(2)}</td></tr>
         ${transaction.discount_amount > 0 ? `<tr><td>Discount</td><td style="text-align:right;color:green">-₹${transaction.discount_amount.toFixed(2)}</td></tr>` : ""}
         ${transaction.loyalty_discount_amount > 0 ? `<tr><td>Loyalty Discount</td><td style="text-align:right;color:green">-₹${transaction.loyalty_discount_amount.toFixed(2)}</td></tr>` : ""}
-        ${savings > 0 ? `<tr><td class="savings">Total Savings 🎉</td><td style="text-align:right" class="savings">₹${savings.toFixed(2)}</td></tr>` : ""}
+        ${savings > 0 ? `<tr><td class="savings">Total Savings <svg style="display:inline-block;width:1.2em;height:1.2em;vertical-align:-0.2em;margin-right:0.2em;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12V8H4v4"></path><path d="M22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6"></path><path d="M12 2v20"></path><path d="M2 12h20"></path></svg></td><td style="text-align:right" class="savings">₹${savings.toFixed(2)}</td></tr>` : ""}
         <tr class="total-row"><td>TOTAL</td><td style="text-align:right">₹${transaction.total_amount.toFixed(2)}</td></tr>
         <tr><td>Payment Method</td><td style="text-align:right">${transaction.payment_method.toUpperCase()}</td></tr>
         ${transaction.cash_received ? `<tr><td>Cash Received</td><td style="text-align:right">₹${transaction.cash_received.toFixed(2)}</td></tr><tr><td>Change</td><td style="text-align:right">₹${(transaction.change_amount || 0).toFixed(2)}</td></tr>` : ""}
       </table>
       ${pdfQrHtml}
-      ${transaction.customer && transaction.loyalty_points_earned > 0 ? `<div style="background:#f0f4ff;padding:10px;border-radius:6px;text-align:center;margin:12px 0;"><strong>⭐ Loyalty Points Earned: +${transaction.loyalty_points_earned}</strong><br/><small>Thank you for being a valued customer!</small></div>` : ""}
+      ${transaction.customer && transaction.loyalty_points_earned > 0 ? `<div style="background:#f0f4ff;padding:10px;border-radius:6px;text-align:center;margin:12px 0;"><strong><svg style="display:inline-block;width:1.2em;height:1.2em;vertical-align:-0.2em;margin-right:0.2em;" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>Loyalty Points Earned: +${transaction.loyalty_points_earned}</strong><br/><small>Thank you for being a valued customer!</small></div>` : ""}
       <div class="footer">${storeSettings.receipt_footer || "Thank you for shopping with us! Visit again."}</div>
     </body></html>`
   }
@@ -283,128 +277,125 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
           <DialogDescription>Preview, print, or share this bill</DialogDescription>
         </DialogHeader>
 
-        {/* Scrollable receipt preview — captured by html2canvas */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.97 }}
-          animate={{ opacity: 1, scale: 1 }}
-          ref={receiptRef}
-          className="bg-white text-black p-4 font-mono text-xs border rounded overflow-y-auto flex-1"
-        >
-          {/* Store Header */}
-          <div className="text-center mb-2">
-            {effectiveLogo && (
-              <img
-                src={effectiveLogo}
-                alt="Logo"
-                className="h-12 mx-auto object-contain mb-1"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }}
-              />
-            )}
-            <div className="font-bold text-sm">{storeSettings.store_name || "TECHNO BILLS"}</div>
-            {storeSettings.store_address && <div className="text-gray-500 text-xs">{storeSettings.store_address}</div>}
-            {storeSettings.store_phone && <div className="text-gray-500 text-xs">Ph: {storeSettings.store_phone}</div>}
-            {storeSettings.gst_number && <div className="text-gray-500 text-xs">GSTIN: {storeSettings.gst_number}</div>}
-          </div>
+        {/* Scrollable receipt preview wrapper */}
+        <div className="overflow-y-auto overflow-x-hidden flex-1 flex justify-center p-1 bg-muted/20 rounded-lg">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            ref={receiptRef}
+            style={{ width: "380px", minWidth: "380px", maxWidth: "380px" }}
+            className="bg-white text-black p-4 font-mono text-xs border rounded shadow-sm h-fit shrink-0 animate-fade-in"
+          >
+            {/* Store Header */}
+            <div className="text-center mb-2">
+              {effectiveLogo && (
+                <img
+                  src={effectiveLogo}
+                  alt="Logo"
+                  className="h-12 mx-auto object-contain mb-1"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }}
+                />
+              )}
+              <div className="font-bold text-sm">{storeSettings.store_name || "TECHNO BILLS"}</div>
+              {storeSettings.store_address && <div className="text-gray-500 text-xs">{storeSettings.store_address}</div>}
+              {storeSettings.store_phone && <div className="text-gray-500 text-xs">Ph: {storeSettings.store_phone}</div>}
+              {storeSettings.gst_number && <div className="text-gray-500 text-xs">GSTIN: {storeSettings.gst_number}</div>}
+            </div>
 
-          <div className="border-t border-dashed border-gray-400 my-2" />
+            <div className="border-t border-dashed border-gray-400 my-2" />
 
-          <div className="mb-2 space-y-0.5">
-            <div className="flex justify-between"><span>Bill No:</span><span className="font-bold">{transaction.invoice_number}</span></div>
-            <div className="flex justify-between"><span>Date:</span><span>{new Date(transaction.created_at).toLocaleDateString("en-IN")}</span></div>
-            <div className="flex justify-between"><span>Time:</span><span>{new Date(transaction.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span></div>
-            <div className="flex justify-between"><span>Cashier:</span><span>{transaction.cashier?.full_name || "Staff"}</span></div>
-            {transaction.customer && <>
-              <div className="flex justify-between"><span>Customer:</span><span>{transaction.customer.name}</span></div>
-              <div className="flex justify-between"><span>Phone:</span><span>{transaction.customer.phone}</span></div>
-            </>}
-          </div>
+            <div className="mb-2 space-y-0.5">
+              <div className="flex justify-between"><span>Bill No:</span><span className="font-bold">{transaction.invoice_number}</span></div>
+              <div className="flex justify-between"><span>Date:</span><span>{new Date(transaction.created_at).toLocaleDateString("en-IN")}</span></div>
+              <div className="flex justify-between"><span>Time:</span><span>{new Date(transaction.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span></div>
+              <div className="flex justify-between"><span>Cashier:</span><span>{transaction.cashier?.full_name || "Staff"}</span></div>
+              {transaction.customer && <>
+                <div className="flex justify-between"><span>Customer:</span><span>{transaction.customer.name}</span></div>
+                <div className="flex justify-between"><span>Phone:</span><span>{transaction.customer.phone}</span></div>
+              </>}
+            </div>
 
-          <div className="border-t border-dashed border-gray-400 my-2" />
+            <div className="border-t border-dashed border-gray-400 my-2" />
 
-          <div className="grid grid-cols-4 gap-1 font-bold mb-1 text-xs">
-            <span className="col-span-2">Item</span>
-            <span className="text-center">Qty</span>
-            <span className="text-right">Amt</span>
-          </div>
-          <div className="border-t border-dashed border-gray-400 my-1" />
+            <div className="grid grid-cols-4 gap-1 font-bold mb-1 text-xs">
+              <span className="col-span-2">Item</span>
+              <span className="text-center">Qty</span>
+              <span className="text-right">Amt</span>
+            </div>
+            <div className="border-t border-dashed border-gray-400 my-1" />
 
-          {transaction.items.map((item: any, index: number) => {
-            const price = item.product.selling_price || item.product.price
-            return (
-              <div key={index} className="mb-1">
-                <div className="grid grid-cols-4 gap-1 text-xs">
-                  <span className="col-span-2 truncate">{item.product.name}</span>
-                  <span className="text-center">{item.quantity}</span>
-                  <span className="text-right">₹{(price * item.quantity).toFixed(2)}</span>
-                </div>
-                {item.product.mrp && item.product.mrp > price && (
-                  <div className="text-xs text-green-600 col-span-4 ml-1">
-                    Save: ₹{(item.product.mrp - price).toFixed(2)}/unit
+            {transaction.items.map((item: any, index: number) => {
+              const price = item.product.selling_price || item.product.price
+              return (
+                <div key={index} className="mb-1">
+                  <div className="grid grid-cols-4 gap-1 text-xs">
+                    <span className="col-span-2 truncate">{item.product.name}</span>
+                    <span className="text-center">{item.quantity}</span>
+                    <span className="text-right">₹{(price * item.quantity).toFixed(2)}</span>
                   </div>
-                )}
+                  {item.product.mrp && item.product.mrp > price && (
+                    <div className="text-xs text-green-600 col-span-4 ml-1">
+                      Save: ₹{(item.product.mrp - price).toFixed(2)}/unit
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+
+            <div className="border-t border-dashed border-gray-400 my-2" />
+
+            <div className="space-y-0.5 text-xs">
+              <div className="flex justify-between"><span>Subtotal:</span><span>₹{transaction.subtotal.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span>CGST:</span><span>₹{(transaction.gst_amount / 2).toFixed(2)}</span></div>
+              <div className="flex justify-between"><span>SGST:</span><span>₹{(transaction.gst_amount / 2).toFixed(2)}</span></div>
+              {transaction.discount_amount > 0 && <div className="flex justify-between text-green-600"><span>Discount ({transaction.discount_percentage?.toFixed(1)}%):</span><span>-₹{transaction.discount_amount.toFixed(2)}</span></div>}
+              {transaction.loyalty_discount_amount > 0 && <div className="flex justify-between text-green-600"><span>Loyalty Discount:</span><span>-₹{transaction.loyalty_discount_amount.toFixed(2)}</span></div>}
+              {totalSavings > 0 && <div className="flex justify-between text-green-600 font-semibold items-center gap-1"><span><Gift className="inline h-4 w-4 mr-1 shrink-0" /> You Saved:</span><span>₹{totalSavings.toFixed(2)}</span></div>}
+            </div>
+
+            <div className="border-t border-dashed border-black my-2" />
+            <div className="flex justify-between font-bold text-sm bg-gray-100 p-1.5 rounded">
+              <span>TOTAL:</span><span>₹{transaction.total_amount.toFixed(2)}</span>
+            </div>
+            <div className="border-t border-dashed border-black my-2" />
+
+            <div className="text-xs space-y-0.5">
+              {transaction.payment_method === "cash" ? <>
+                <div className="flex justify-between"><span>Cash Paid:</span><span>₹{transaction.cash_received?.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span>Change:</span><span>₹{transaction.change_amount?.toFixed(2)}</span></div>
+              </> : (
+                <div className="flex justify-between"><span>Payment:</span><span>{transaction.payment_method.toUpperCase()}</span></div>
+              )}
+            </div>
+
+            {/* UPI QR Preview */}
+            {qrImageToDisplay ? (
+              <div className="text-center mt-2 border border-dashed border-gray-300 rounded p-2">
+                <div className="text-xs font-bold mb-1">{showDynamicQr ? "Scan to Pay via UPI" : "Scan QR Code"}</div>
+                <img src={qrImageToDisplay} alt="QR Code" className="w-20 h-20 mx-auto" />
+                {showDynamicQr && storeSettings.upi_id && <div className="text-xs text-gray-500 mt-1">{storeSettings.upi_id}</div>}
               </div>
-            )
-          })}
+            ) : null}
 
-          <div className="border-t border-dashed border-gray-400 my-2" />
-
-          <div className="space-y-0.5 text-xs">
-            <div className="flex justify-between"><span>Subtotal:</span><span>₹{transaction.subtotal.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span>CGST:</span><span>₹{(transaction.gst_amount / 2).toFixed(2)}</span></div>
-            <div className="flex justify-between"><span>SGST:</span><span>₹{(transaction.gst_amount / 2).toFixed(2)}</span></div>
-            {transaction.discount_amount > 0 && <div className="flex justify-between text-green-600"><span>Discount ({transaction.discount_percentage?.toFixed(1)}%):</span><span>-₹{transaction.discount_amount.toFixed(2)}</span></div>}
-            {transaction.loyalty_discount_amount > 0 && <div className="flex justify-between text-green-600"><span>Loyalty Discount:</span><span>-₹{transaction.loyalty_discount_amount.toFixed(2)}</span></div>}
-            {totalSavings > 0 && <div className="flex justify-between text-green-600 font-semibold"><span>🎉 You Saved:</span><span>₹{totalSavings.toFixed(2)}</span></div>}
-          </div>
-
-          <div className="border-t border-dashed border-black my-2" />
-          <div className="flex justify-between font-bold text-sm bg-gray-100 p-1.5 rounded">
-            <span>TOTAL:</span><span>₹{transaction.total_amount.toFixed(2)}</span>
-          </div>
-          <div className="border-t border-dashed border-black my-2" />
-
-          <div className="text-xs space-y-0.5">
-            {transaction.payment_method === "cash" ? <>
-              <div className="flex justify-between"><span>Cash Paid:</span><span>₹{transaction.cash_received?.toFixed(2)}</span></div>
-              <div className="flex justify-between"><span>Change:</span><span>₹{transaction.change_amount?.toFixed(2)}</span></div>
-            </> : (
-              <div className="flex justify-between"><span>Payment:</span><span>{transaction.payment_method.toUpperCase()}</span></div>
+            {/* Loyalty */}
+            {transaction.customer && transaction.loyalty_points_earned > 0 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+                className="mt-2 bg-blue-50 p-2 rounded text-center"
+              >
+                <div className="flex items-center justify-center gap-1 text-blue-700 font-bold text-xs">
+                  <Gift className="h-3 w-3" /> LOYALTY POINTS
+                </div>
+                <Badge className="bg-blue-600 text-white mt-1">+{transaction.loyalty_points_earned} pts earned</Badge>
+              </motion.div>
             )}
-          </div>
 
-          {/* UPI QR Preview */}
-          {effectiveQr ? (
-            <div className="text-center mt-2 border border-dashed border-gray-300 rounded p-2">
-              <div className="text-xs font-bold mb-1">Scan to Pay via UPI</div>
-              <img src={effectiveQr} alt="UPI QR" className="w-20 h-20 mx-auto" />
-              <div className="text-xs text-gray-500 mt-1">{storeSettings.upi_id}</div>
-            </div>
-          ) : upiQrUrl ? (
-            <div className="text-center mt-2 border border-dashed border-gray-300 rounded p-2">
-              <div className="text-xs font-bold mb-1">Scan to Pay via UPI</div>
-              <img src={upiQrUrl} alt="UPI QR" className="w-20 h-20 mx-auto" />
-              <div className="text-xs text-gray-500 mt-1">{storeSettings.upi_id}</div>
-            </div>
-          ) : null}
-
-          {/* Loyalty */}
-          {transaction.customer && transaction.loyalty_points_earned > 0 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="mt-2 bg-purple-50 p-2 rounded text-center"
-            >
-              <div className="flex items-center justify-center gap-1 text-purple-700 font-bold text-xs">
-                <Gift className="h-3 w-3" /> LOYALTY POINTS
-              </div>
-              <Badge className="bg-purple-600 text-white mt-1">+{transaction.loyalty_points_earned} pts earned</Badge>
-            </motion.div>
-          )}
-
-          <div className="border-t border-dashed border-gray-400 my-2" />
-          <div className="text-center text-xs">{storeSettings.receipt_footer || "Thank You! Visit Again!"}</div>
-        </motion.div>
+            <div className="border-t border-dashed border-gray-400 my-2" />
+            <div className="text-center text-xs">{storeSettings.receipt_footer || "Thank You! Visit Again!"}</div>
+          </motion.div>
+        </div>
 
         {/* Action Buttons */}
         <div className="grid grid-cols-2 gap-2 mt-3">

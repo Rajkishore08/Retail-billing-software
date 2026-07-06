@@ -133,6 +133,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!active) return
       try {
+        // FIX: Skip DB calls for token refresh events — the user & profile haven't changed.
+        // Previously TOKEN_REFRESHED fired fetchProfile (2 DB round-trips) every ~50 min,
+        // compounding slowness over a long session.
+        if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED' || event === 'PASSWORD_RECOVERY') {
+          // Just keep the user object in sync, no DB call needed
+          if (session?.user) setUser(session.user)
+          return
+        }
         setUser(session?.user ?? null)
         if (session?.user) {
           await fetchProfile(session.user.id)

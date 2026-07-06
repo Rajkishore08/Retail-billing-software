@@ -11,7 +11,7 @@ import { toast } from "sonner"
 import { useAuth } from "@/contexts/auth-context"
 
 const roleColors: Record<string, string> = {
-  admin: "bg-violet-500/20 text-violet-300 border border-violet-500/30",
+  admin: "bg-blue-500/20 text-blue-300 border border-blue-500/30",
   manager: "bg-sky-500/20 text-sky-300 border border-sky-500/30",
   cashier: "bg-amber-500/20 text-amber-300 border border-amber-500/30",
 }
@@ -54,7 +54,7 @@ export function UserTable({ users, onRefresh }: UserTableProps) {
   if (users.length === 0) {
     return (
       <div className="text-center py-20 animate-fade-in">
-        <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-4 glow-violet">
+        <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-4 glow-blue">
           <User className="h-8 w-8 text-white" />
         </div>
         <h3 className="font-bold text-lg mb-1">No users found</h3>
@@ -69,7 +69,7 @@ export function UserTable({ users, onRefresh }: UserTableProps) {
         {users.map((user, i) => (
           <div
             key={user.id}
-            className={`flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:border-violet-500/30 transition-all animate-fade-in-up`}
+            className={`flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:border-blue-500/30 transition-all animate-fade-in-up`}
             style={{ animationDelay: `${i * 0.04}s`, animationFillMode: "forwards" }}
           >
             {/* Avatar */}
@@ -149,7 +149,7 @@ export function UserTable({ users, onRefresh }: UserTableProps) {
                   variant="outline"
                   size="sm"
                   onClick={() => setEditingUser(user)}
-                  className="h-8 w-8 p-0 rounded-lg hover:border-violet-500/50 hover:text-violet-400"
+                  className="h-8 w-8 p-0 rounded-lg hover:border-blue-500/50 hover:text-blue-400"
                   title="Edit user"
                 >
                   <Edit2 className="h-3.5 w-3.5" />

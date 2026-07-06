@@ -1,7 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
 
-console.log("Supabase Client Init - URL:", process.env.NEXT_PUBLIC_SUPABASE_URL, "Key exists:", !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
@@ -98,38 +96,59 @@ export const optimizedQueries = {
 }
 
 // High-performance real-time subscriptions for POS
+// IMPORTANT: Always call the returned unsubscribe() in useEffect cleanup to prevent channel leaks.
+// Example usage:
+//   useEffect(() => {
+//     const sub = realtimeSubscriptions.subscribeToProducts(handler)
+//     return () => sub.unsubscribe()
+//   }, [])
 export const realtimeSubscriptions = {
   // Subscribe to product changes
   subscribeToProducts: (callback: (payload: any) => void) => {
-    return supabase
-      .channel('products')
+    const channelName = `products-${Date.now()}`
+    const channel = supabase
+      .channel(channelName)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'products' }, 
         callback
       )
       .subscribe()
+    return {
+      channel,
+      unsubscribe: () => supabase.removeChannel(channel)
+    }
   },
 
   // Subscribe to transaction changes
   subscribeToTransactions: (callback: (payload: any) => void) => {
-    return supabase
-      .channel('transactions')
+    const channelName = `transactions-${Date.now()}`
+    const channel = supabase
+      .channel(channelName)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'transactions' }, 
         callback
       )
       .subscribe()
+    return {
+      channel,
+      unsubscribe: () => supabase.removeChannel(channel)
+    }
   },
 
   // Subscribe to customer changes
   subscribeToCustomers: (callback: (payload: any) => void) => {
-    return supabase
-      .channel('customers')
+    const channelName = `customers-${Date.now()}`
+    const channel = supabase
+      .channel(channelName)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'customers' }, 
         callback
       )
       .subscribe()
+    return {
+      channel,
+      unsubscribe: () => supabase.removeChannel(channel)
+    }
   }
 }
 

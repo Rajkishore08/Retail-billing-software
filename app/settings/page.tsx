@@ -64,6 +64,7 @@ export default function SettingsPage() {
       const result = reader.result as string
       setStoreLogo(result)
       setLogoImage(result)
+      window.dispatchEvent(new Event("store-logo-changed"))
       toast.success("Logo uploaded successfully!")
     }
     reader.readAsDataURL(file)
@@ -145,7 +146,7 @@ export default function SettingsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={updateProfile} disabled={loading} className="w-full h-11 rounded-xl gradient-primary border-0 shadow-lg glow-violet text-white font-bold mt-2">
+            <Button onClick={updateProfile} disabled={loading} className="w-full h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold mt-2 shadow-lg shadow-blue-500/20">
               <CheckCircle2 className="h-4 w-4 mr-2" /> Save Profile
             </Button>
           </CardContent>
@@ -154,8 +155,8 @@ export default function SettingsPage() {
         {/* ── Store Logo ──────────────────────────────────── */}
         <Card className="border-border bg-card rounded-2xl overflow-hidden card-hover stagger-2">
           <div className="p-5 border-b border-white/5 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center shrink-0">
-              <ImageIcon className="h-5 w-5 text-purple-400" />
+            <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center shrink-0">
+              <ImageIcon className="h-5 w-5 text-blue-400" />
             </div>
             <div>
               <h3 className="font-bold">Branding & Logo</h3>
@@ -172,7 +173,7 @@ export default function SettingsPage() {
 
             {/* Logo Upload Zone (click or drag) */}
             <div
-              className="relative flex flex-col items-center justify-center h-36 bg-white/5 rounded-xl border-2 border-dashed border-white/15 cursor-pointer hover:border-purple-500/60 hover:bg-purple-500/5 transition-all duration-200 group overflow-hidden"
+              className="relative flex flex-col items-center justify-center h-36 bg-white/5 rounded-xl border-2 border-dashed border-white/15 cursor-pointer hover:border-blue-500/60 hover:bg-blue-500/5 transition-all duration-200 group overflow-hidden"
               onClick={() => logoFileRef.current?.click()}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
@@ -188,10 +189,10 @@ export default function SettingsPage() {
                 <img src={logoImage} alt="Store Logo" className="h-full w-full object-contain p-3" onError={() => setLogoPreviewError(true)} />
               ) : (
                 <div className="text-center text-muted-foreground select-none">
-                  <div className="w-12 h-12 mx-auto mb-2 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
-                    <ImageIcon className="h-6 w-6 text-purple-400 opacity-70" />
+                  <div className="w-12 h-12 mx-auto mb-2 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                    <ImageIcon className="h-6 w-6 text-blue-400 opacity-70" />
                   </div>
-                  <p className="text-xs font-bold text-purple-300/70">Click or drag to upload logo</p>
+                  <p className="text-xs font-bold text-blue-300/70">Click or drag to upload logo</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">PNG, JPG, SVG · Max 2 MB</p>
                 </div>
               )}
@@ -219,7 +220,7 @@ export default function SettingsPage() {
                   variant="outline"
                   size="sm"
                   className="h-9 w-9 p-0 rounded-xl border-red-500/30 hover:bg-red-500/10"
-                  onClick={() => { removeStoreLogo(); setLogoImage(""); setStoreSettings({ ...storeSettings, store_logo: "" }); setLogoPreviewError(false) }}
+                  onClick={() => { removeStoreLogo(); setLogoImage(""); setStoreSettings({ ...storeSettings, store_logo: "" }); setLogoPreviewError(false); window.dispatchEvent(new Event("store-logo-changed")) }}
                   title="Remove logo"
                 >
                   <X className="h-3 w-3 text-red-400" />
@@ -440,8 +441,8 @@ export default function SettingsPage() {
       {profile?.role === 'admin' && (
         <div className="space-y-3">
           <div className="flex items-center gap-2 mb-1">
-            <div className="w-6 h-6 rounded-md bg-violet-500/20 flex items-center justify-center">
-              <Shield className="h-3.5 w-3.5 text-violet-400" />
+            <div className="w-6 h-6 rounded-md bg-blue-500/20 flex items-center justify-center">
+              <Shield className="h-3.5 w-3.5 text-blue-400" />
             </div>
             <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Admin Controls</h3>
           </div>
@@ -452,9 +453,9 @@ export default function SettingsPage() {
                 icon: UserCog,
                 title: "User Management",
                 desc: "Create, edit, activate/deactivate, and reset passwords for all system users.",
-                gradient: "linear-gradient(135deg,#7c3aed,#5b21b6)",
-                glow: "rgba(124,58,237,0.2)",
-                border: "rgba(124,58,237,0.25)",
+                gradient: "linear-gradient(135deg,#2563eb,#1d4ed8)",
+                glow: "rgba(37,99,235,0.15)",
+                border: "rgba(37,99,235,0.25)",
               },
               {
                 href: "/settings/permissions",

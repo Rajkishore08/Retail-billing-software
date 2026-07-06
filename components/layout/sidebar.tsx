@@ -11,9 +11,10 @@ import {
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
+import { getStoreLogo } from "@/lib/store-image-store"
 
 const ALL_NAV = [
-  { name: "Dashboard",      href: "/dashboard",            icon: LayoutDashboard, module: "dashboard",       gradient: "from-violet-500 to-purple-700",  glow: "rgba(124,58,237,0.35)"  },
+  { name: "Dashboard",      href: "/dashboard",            icon: LayoutDashboard, module: "dashboard",       gradient: "from-blue-600 to-blue-900",  glow: "rgba(29,78,216,0.35)"  },
   { name: "Products",       href: "/products",             icon: Package,          module: "products",        gradient: "from-sky-500 to-blue-700",        glow: "rgba(2,132,199,0.35)"   },
   { name: "POS Billing",    href: "/pos",                  icon: ShoppingCart,     module: "pos",             gradient: "from-emerald-500 to-green-700",   glow: "rgba(5,150,105,0.35)"   },
   { name: "Customers",      href: "/customers",            icon: Users,            module: "customers",       gradient: "from-amber-500 to-orange-600",    glow: "rgba(217,119,6,0.35)"   },
@@ -21,8 +22,8 @@ const ALL_NAV = [
   { name: "Sales Overview", href: "/sales",                icon: TrendingUp,       module: "sales",           gradient: "from-cyan-500 to-teal-700",       glow: "rgba(8,145,178,0.35)"   },
   { name: "Reports",        href: "/reports",              icon: BarChart3,        module: "reports",         gradient: "from-indigo-500 to-blue-700",     glow: "rgba(79,70,229,0.35)"   },
   { name: "Settings",       href: "/settings",             icon: Settings,         module: "settings",        gradient: "from-slate-500 to-slate-700",     glow: "rgba(100,116,139,0.35)" },
-  { name: "Users",          href: "/settings/users",       icon: UserCog,          module: "users",           gradient: "from-violet-500 to-indigo-700",   glow: "rgba(124,58,237,0.35)"  },
-  { name: "Permissions",    href: "/settings/permissions", icon: Shield,           module: "users",           gradient: "from-violet-500 to-indigo-700",   glow: "rgba(124,58,237,0.35)"  },
+  { name: "Nav Users",      href: "/settings/users",       icon: UserCog,          module: "users",           gradient: "from-blue-600 to-blue-900",   glow: "rgba(29,78,216,0.35)"  },
+  { name: "Permissions",    href: "/settings/permissions", icon: Shield,           module: "users",           gradient: "from-blue-600 to-blue-900",   glow: "rgba(29,78,216,0.35)"  },
 ]
 
 export function Sidebar() {
@@ -30,8 +31,24 @@ export function Sidebar() {
   const { profile, signOut, hasPermission } = useAuth()
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
 
   useEffect(() => { setMounted(true) }, [])
+
+  useEffect(() => {
+    setLogoUrl(getStoreLogo())
+
+    const handleLogoUpdate = () => {
+      setLogoUrl(getStoreLogo())
+    }
+
+    window.addEventListener("store-logo-changed", handleLogoUpdate)
+    window.addEventListener("storage", handleLogoUpdate)
+    return () => {
+      window.removeEventListener("store-logo-changed", handleLogoUpdate)
+      window.removeEventListener("storage", handleLogoUpdate)
+    }
+  }, [])
 
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()
@@ -56,15 +73,21 @@ export function Sidebar() {
       {/* Ambient top glow */}
       <div
         className="absolute top-0 left-0 right-0 h-48 pointer-events-none"
-        style={{ background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(124,58,237,0.18), transparent)" }}
+        style={{ background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(29,78,216,0.18), transparent)" }}
       />
 
       {/* ── Logo / Brand ─────────────────────────────────── */}
       <div className="relative z-10 px-5 pt-6 pb-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
         <div className="flex items-center gap-3.5">
           <div className="relative animate-float shrink-0">
-            <div className="w-11 h-11 rounded-2xl gradient-primary flex items-center justify-center shadow-xl glow-violet">
-              <ShoppingBag className="h-5 w-5 text-white" />
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-xl overflow-hidden border border-white/10" style={{ background: logoUrl ? "rgba(255,255,255,0.05)" : "none" }}>
+              {logoUrl ? (
+                <img src={logoUrl} alt="Store Logo" className="w-full h-full object-contain p-1" />
+              ) : (
+                <div className="w-full h-full gradient-primary flex items-center justify-center glow-blue">
+                  <ShoppingBag className="h-5 w-5 text-white" />
+                </div>
+              )}
             </div>
             <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-[#060612] animate-pulse" />
           </div>
@@ -139,10 +162,10 @@ export function Sidebar() {
           className="flex items-center gap-3 px-3 py-3 rounded-xl mb-2"
           style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)" }}
         >
-          <Avatar className="h-9 w-9 shrink-0 ring-2 ring-violet-500/40 ring-offset-1 ring-offset-transparent">
+          <Avatar className="h-9 w-9 shrink-0 ring-2 ring-blue-500/40 ring-offset-1 ring-offset-transparent">
             <AvatarFallback
               className="text-white text-xs font-bold"
-              style={{ background: "linear-gradient(135deg,#7c3aed,#5b21b6)" }}
+              style={{ background: "linear-gradient(135deg,#1d4ed8,#1e3a8a)" }}
             >
               {initials}
             </AvatarFallback>
@@ -189,7 +212,7 @@ function NavItem({ item, isActive }: { item: typeof ALL_NAV[0]; isActive: boolea
       ].join(" ")}
     >
       {isActive && (
-        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.8)]" />
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full bg-blue-400 shadow-[0_0_8px_rgba(147,197,253,0.8)]" />
       )}
       <span className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
         style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))" }} />

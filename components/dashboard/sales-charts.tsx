@@ -211,7 +211,7 @@ export function SalesCharts() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
-              <Percent className="h-5 w-5 text-purple-600" />
+              <Percent className="h-5 w-5 text-blue-600" />
               <div>
                 <p className="text-sm text-muted-foreground">Total Savings</p>
                 <p className="text-2xl font-bold">
@@ -260,8 +260,8 @@ export function SalesCharts() {
                 <Area 
                   type="monotone" 
                   dataKey="sales_amount" 
-                  stroke="#8884d8" 
-                  fill="#8884d8" 
+                  stroke="#3b82f6" 
+                  fill="#3b82f6" 
                   fillOpacity={0.3}
                   key="sales-area"
                 />

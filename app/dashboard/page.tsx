@@ -6,12 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ShoppingCart, Package, UserPlus, BarChart3, ArrowRight,
   Sparkles, Clock, CheckCircle2, Zap, TrendingUp, Star,
+  Sunrise, Sun, Moon,
 } from "lucide-react"
 import Link from "next/link"
 import { DashboardStats } from "@/components/dashboard/dashboard-stats"
 import { SalesCharts } from "@/components/dashboard/sales-charts"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useState, useEffect } from "react"
+
 import { RouteGuard } from "@/components/auth/route-guard"
 
 const quickActions = [
@@ -73,38 +74,15 @@ const steps = [
 
 export default function DashboardPage() {
   const { profile } = useAuth()
-  const [loading, setLoading] = useState(true)
-  const [mounted, setMounted] = useState(false)
+  // FIX: Removed artificial 700ms setTimeout delay — DashboardStats handles its own skeleton.
   const firstName = profile?.full_name?.split(" ")[0] || "there"
-
-  useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 700)
-    return () => clearTimeout(t)
-  }, [])
-
-  useEffect(() => { setMounted(true) }, [])
 
   const now = new Date()
   const hour = now.getHours()
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
-  const greetingEmoji = hour < 12 ? "🌅" : hour < 17 ? "☀️" : "🌙"
-  const dateString = mounted
-    ? now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
-    : ""
+  const GreetingIcon = hour < 12 ? Sunrise : hour < 17 ? Sun : Moon
+  const dateString = now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
 
-  if (loading) {
-    return (
-      <div className="space-y-8 animate-fade-in">
-        <div className="h-44 skeleton rounded-2xl" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {[1, 2, 3].map(i => <div key={i} className="h-40 skeleton rounded-2xl" />)}
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => <div key={i} className="h-36 skeleton rounded-2xl" />)}
-        </div>
-      </div>
-    )
-  }
 
   return (
     <RouteGuard module="dashboard">
@@ -135,10 +113,10 @@ export default function DashboardPage() {
               <span className="text-amber-300 text-xs font-semibold">{greeting}, {firstName}!</span>
             </div>
 
-            <h1 className="text-4xl font-bold text-white tracking-tight mb-2">
-              Your Store Dashboard {greetingEmoji}
+            <h1 className="text-4xl font-bold text-white tracking-tight mb-2 flex items-center gap-2">
+              Your Store Dashboard <GreetingIcon className="h-8 w-8 text-amber-400 shrink-0" />
             </h1>
-            <p className="text-violet-300/80 text-sm font-medium">
+            <p className="text-blue-300/80 text-sm font-medium">
               Techno Bills POS — Here&apos;s your store at a glance.
             </p>
 
@@ -273,9 +251,9 @@ export default function DashboardPage() {
                     "w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-sm font-bold shadow-md",
                     step.done
                       ? "gradient-emerald text-white"
-                      : "text-violet-400 border border-violet-500/30",
+                      : "text-blue-400 border border-blue-500/30",
                   ].join(" ")}
-                    style={!step.done ? { background: "rgba(124,58,237,0.1)" } : {}}>
+                    style={!step.done ? { background: "rgba(37,99,235,0.1)" } : {}}>
                     {step.done ? <CheckCircle2 className="h-4 w-4" /> : (
                       <span className="font-numeric">{i + 1}</span>
                     )}

@@ -3,11 +3,18 @@
 
 const KEY = "nmm_product_images_v1"
 
+// In-memory cache to prevent constant reading and parsing from localStorage
+let cachedImages: Record<string, string> | null = null
+
 export function getAllProductImages(): Record<string, string> {
+  if (cachedImages !== null) {
+    return cachedImages
+  }
   if (typeof window === "undefined") return {}
   try {
     const raw = localStorage.getItem(KEY)
-    return raw ? JSON.parse(raw) : {}
+    cachedImages = raw ? JSON.parse(raw) : {}
+    return cachedImages || {}
   } catch {
     return {}
   }
@@ -22,6 +29,7 @@ export function setProductImage(productId: string, imageUrl: string): void {
   try {
     const map = getAllProductImages()
     map[productId] = imageUrl
+    cachedImages = map
     localStorage.setItem(KEY, JSON.stringify(map))
   } catch (e) {
     console.error("product-image-store: save failed", e)
@@ -33,6 +41,7 @@ export function removeProductImage(productId: string): void {
   try {
     const map = getAllProductImages()
     delete map[productId]
+    cachedImages = map
     localStorage.setItem(KEY, JSON.stringify(map))
   } catch (e) {
     console.error("product-image-store: remove failed", e)
@@ -45,7 +54,7 @@ export function removeProductImage(productId: string): void {
  */
 export function placeholderClass(name: string): string {
   const classes = [
-    "img-placeholder-violet",
+    "img-placeholder-blue",
     "img-placeholder-emerald",
     "img-placeholder-amber",
     "img-placeholder-sky",

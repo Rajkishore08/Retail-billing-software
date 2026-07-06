@@ -95,6 +95,15 @@ export default function ProductsPage() {
   const [filteredBrands, setFilteredBrands] = useState<string[]>([])
   const [filterStock, setFilterStock]       = useState<"all" | "low" | "ok">("all")
   const [viewMode, setViewMode]             = useState<"grid" | "list">("grid")
+  
+  // Pagination optimization variables
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 16
+  const paginatedProducts = filtered.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  )
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
 
   const barcodeRef = useRef<HTMLInputElement>(null)
   const fileRef    = useRef<HTMLInputElement>(null)
@@ -123,14 +132,15 @@ export default function ProductsPage() {
       const q = searchTerm.toLowerCase()
       list = list.filter(p =>
         p.name.toLowerCase().includes(q) ||
-        p.brand.toLowerCase().includes(q) ||
-        p.hsn_code.toLowerCase().includes(q) ||
+        (p.brand && p.brand.toLowerCase().includes(q)) ||
+        (p.hsn_code && p.hsn_code.toLowerCase().includes(q)) ||
         (p.barcode && p.barcode.toLowerCase().includes(q))
       )
     }
     if (filterStock === "low") list = list.filter(p => p.stock_quantity <= p.min_stock_level)
     if (filterStock === "ok")  list = list.filter(p => p.stock_quantity >  p.min_stock_level)
     setFiltered(list)
+    setCurrentPage(1)
   }, [products, searchTerm, filterStock])
 
   useEffect(() => { filterProducts() }, [filterProducts])
@@ -355,7 +365,7 @@ export default function ProductsPage() {
           </div>
           <Button
             onClick={openAdd}
-            className="h-11 px-6 rounded-xl font-semibold gradient-primary border-0 shadow-xl hover:opacity-90 glow-violet text-white shrink-0"
+            className="h-11 px-6 rounded-xl font-semibold gradient-primary border-0 shadow-xl hover:opacity-90 glow-blue text-white shrink-0"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Product
@@ -397,7 +407,11 @@ export default function ProductsPage() {
                   : "border-border text-muted-foreground hover:text-foreground hover:bg-card",
               ].join(" ")}
             >
-              {f === "all" ? "All" : f === "ok" ? "✓ In Stock" : "⚠ Low Stock"}
+              {f === "all" ? "All" : f === "ok" ? (
+                <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> In Stock</span>
+              ) : (
+                <span className="flex items-center gap-1.5"><AlertTriangle className="h-4 w-4" /> Low Stock</span>
+              )}
             </button>
           ))}
 
@@ -436,7 +450,7 @@ export default function ProductsPage() {
       {/* ── Product Grid / Empty State ─────────────────── */}
       {filtered.length === 0 ? (
         <div className="text-center py-24 animate-fade-in">
-          <div className="w-20 h-20 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-5 glow-violet">
+          <div className="w-20 h-20 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-5 glow-blue">
             <Package className="h-10 w-10 text-white" />
           </div>
           <h3 className="text-xl font-bold mb-2">No products found</h3>
@@ -444,142 +458,204 @@ export default function ProductsPage() {
             {searchTerm ? "Try a different search term or clear the filter." : "Add your first product to get started."}
           </p>
           {!searchTerm && (
-            <Button onClick={openAdd} className="gradient-primary border-0 rounded-xl px-8 h-11 font-semibold shadow-lg glow-violet">
+            <Button onClick={openAdd} className="gradient-primary border-0 rounded-xl px-8 h-11 font-semibold shadow-lg glow-blue">
               <Plus className="h-4 w-4 mr-2" /> Add First Product
             </Button>
           )}
         </div>
       ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {filtered.map((product, idx) => {
-            const isLow  = product.stock_quantity <= product.min_stock_level
-            const price  = product.selling_price || product.price
-            const hasMrp = product.mrp && product.mrp > price
-            const discount = hasMrp ? Math.round((1 - price / product.mrp!) * 100) : 0
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {paginatedProducts.map((product, idx) => {
+              const isLow  = product.stock_quantity <= product.min_stock_level
+              const price  = product.selling_price || product.price
+              const hasMrp = product.mrp && product.mrp > price
+              const discount = hasMrp ? Math.round((1 - price / product.mrp!) * 100) : 0
 
-            return (
-              <Card
-                key={product.id}
-                className={`border border-border rounded-2xl overflow-hidden card-hover animate-fade-in-up stagger-${Math.min(idx+1,4)} group`}
-                style={{ animationDelay: `${(idx % 8) * 0.05}s`, animationFillMode: "forwards" }}
-              >
-                {/* Image area */}
-                <div className="relative overflow-hidden">
-                  <ProductImage product={product} images={productImages} size="lg" />
-                  {/* Gradient overlay at bottom of image */}
-                  <div className="img-card-overlay" />
+              return (
+                <Card
+                  key={product.id}
+                  className={`border border-border rounded-2xl overflow-hidden card-hover animate-fade-in-up stagger-${Math.min(idx+1,4)} group`}
+                  style={{ animationDelay: `${(idx % 8) * 0.05}s`, animationFillMode: "forwards" }}
+                >
+                  {/* Image area */}
+                  <div className="relative overflow-hidden">
+                    <ProductImage product={product} images={productImages} size="lg" />
+                    {/* Gradient overlay at bottom of image */}
+                    <div className="img-card-overlay" />
 
-                  {/* Badges on top of image */}
-                  <div className="absolute top-2.5 left-2.5 right-2.5 flex justify-between items-start">
-                    {discount > 0 ? (
-                      <span className="bg-rose-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg">
-                        -{discount}%
+                    {/* Badges on top of image */}
+                    <div className="absolute top-2.5 left-2.5 right-2.5 flex justify-between items-start">
+                      {discount > 0 ? (
+                        <span className="bg-rose-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg">
+                          -{discount}%
+                        </span>
+                      ) : <span />}
+                      <span className={[
+                        "text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg backdrop-blur-sm flex items-center gap-1",
+                        isLow ? "bg-amber-500/90 text-white" : "bg-emerald-500/90 text-white",
+                      ].join(" ")}>
+                        {isLow ? (
+                          <><AlertTriangle className="h-3 w-3 shrink-0" /> Low</>
+                        ) : (
+                          <><CheckCircle2 className="h-3 w-3 shrink-0" /> In Stock</>
+                        )}
                       </span>
-                    ) : <span />}
-                    <span className={[
-                      "text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg backdrop-blur-sm",
-                      isLow ? "bg-amber-500/90 text-white" : "bg-emerald-500/90 text-white",
-                    ].join(" ")}>
-                      {isLow ? "⚠ Low" : "✓ In Stock"}
-                    </span>
-                  </div>
+                    </div>
 
-                  {/* Price shown at bottom of image */}
-                  <div className="absolute bottom-0 left-0 right-0 p-3 flex items-end justify-between">
-                    <span className="text-xl font-bold text-white font-numeric drop-shadow-lg">
-                      {formatCurrency(price)}
-                    </span>
-                    {hasMrp && (
-                      <span className="text-xs text-white/60 line-through drop-shadow">
-                        MRP {formatCurrency(product.mrp!)}
+                    {/* Price shown at bottom of image */}
+                    <div className="absolute bottom-0 left-0 right-0 p-3 flex items-end justify-between">
+                      <span className="text-xl font-bold text-white font-numeric drop-shadow-lg">
+                        {formatCurrency(price)}
                       </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Content */}
-                <CardContent className="p-4 space-y-3">
-                  <div>
-                    <h3 className="font-bold text-sm leading-tight line-clamp-1">{product.name}</h3>
-                    <div className="flex items-center justify-between mt-0.5">
-                      <p className="text-xs text-muted-foreground">{product.brand}</p>
-                      <span className={`text-xs font-bold ${isLow ? "text-amber-500" : "text-slate-400"}`}>
-                        Qty: {product.stock_quantity}
-                      </span>
+                      {hasMrp && (
+                        <span className="text-xs text-white/60 line-through drop-shadow">
+                          MRP {formatCurrency(product.mrp!)}
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  {/* Info pills */}
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-500/12 text-violet-400 border border-violet-500/20">
-                      <Tag className="h-2.5 w-2.5" />GST {product.gst_rate}%
-                    </span>
-                    {product.barcode && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/12 text-sky-400 border border-sky-500/20">
-                        <Barcode className="h-2.5 w-2.5" />{product.barcode.slice(-6)}
+                  {/* Content */}
+                  <CardContent className="p-4 space-y-3">
+                    <div>
+                      <h3 className="font-bold text-sm leading-tight line-clamp-1">{product.name}</h3>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <p className="text-xs text-muted-foreground">{product.brand}</p>
+                        <span className={`text-xs font-bold ${isLow ? "text-amber-500" : "text-slate-400"}`}>
+                          Qty: {product.stock_quantity}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Info pills */}
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/12 text-blue-400 border border-blue-500/20">
+                        <Tag className="h-2.5 w-2.5" />GST {product.gst_rate}%
                       </span>
-                    )}
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-400 border border-slate-500/20">
-                      <Layers className="h-2.5 w-2.5" />{product.hsn_code}
-                    </span>
-                  </div>
+                      {product.barcode && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/12 text-sky-400 border border-sky-500/20">
+                          <Barcode className="h-2.5 w-2.5" />{product.barcode.slice(-6)}
+                        </span>
+                      )}
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                        <Layers className="h-2.5 w-2.5" />{product.hsn_code}
+                      </span>
+                    </div>
 
-                  <div className="divider" />
+                    <div className="divider" />
 
-                  {/* Actions */}
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => openEdit(product)}
-                      className="flex-1 h-9 rounded-lg text-xs font-semibold hover:border-violet-500/50 hover:text-violet-400 hover:bg-violet-500/5 transition-colors">
-                      <Edit className="h-3 w-3 mr-1.5" /> Edit
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleDelete(product.id)}
-                      className="flex-1 h-9 rounded-lg text-xs font-semibold hover:border-rose-500/50 hover:text-rose-400 hover:bg-rose-500/5 transition-colors">
-                      <Trash2 className="h-3 w-3 mr-1.5" /> Delete
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+                    {/* Actions */}
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => openEdit(product)}
+                        className="flex-1 h-9 rounded-lg text-xs font-semibold hover:border-blue-500/50 hover:text-blue-400 hover:bg-blue-500/5 transition-colors">
+                        <Edit className="h-3 w-3 mr-1.5" /> Edit
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleDelete(product.id)}
+                        className="flex-1 h-9 rounded-lg text-xs font-semibold hover:border-rose-500/50 hover:text-rose-400 hover:bg-rose-500/5 transition-colors">
+                        <Trash2 className="h-3 w-3 mr-1.5" /> Delete
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3 pt-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+                className="h-9 rounded-xl"
+              >
+                Prev
+              </Button>
+              <span className="text-sm font-medium min-w-[100px] text-center">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages}
+                className="h-9 rounded-xl"
+              >
+                Next
+              </Button>
+            </div>
+          )}
+        </>
       ) : (
         /* ── List View ── */
-        <div className="space-y-2">
-          {filtered.map((product, idx) => {
-            const isLow = product.stock_quantity <= product.min_stock_level
-            const price = product.selling_price || product.price
-            return (
-              <div key={product.id}
-                className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:border-violet-500/30 transition-colors animate-fade-in-up"
-                style={{ animationDelay: `${idx * 0.03}s`, animationFillMode: "forwards" }}>
-                {/* Mini image */}
-                <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-border">
-                  <ProductImage product={product} images={productImages} size="sm" />
+        <>
+          <div className="space-y-2">
+            {paginatedProducts.map((product, idx) => {
+              const isLow = product.stock_quantity <= product.min_stock_level
+              const price = product.selling_price || product.price
+              return (
+                <div key={product.id}
+                  className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:border-blue-500/30 transition-colors animate-fade-in-up"
+                  style={{ animationDelay: `${idx * 0.03}s`, animationFillMode: "forwards" }}>
+                  {/* Mini image */}
+                  <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-border">
+                    <ProductImage product={product} images={productImages} size="sm" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-sm truncate">{product.name}</h3>
+                    <p className="text-xs text-muted-foreground">{product.brand}</p>
+                  </div>
+                  <span className="font-bold text-sm text-emerald-500 font-numeric shrink-0">
+                    {formatCurrency(price)}
+                  </span>
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 flex items-center gap-1 ${isLow ? "bg-amber-500/20 text-amber-400" : "bg-emerald-500/20 text-emerald-400"}`}>
+                    {isLow ? <AlertTriangle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />} {product.stock_quantity} left
+                  </span>
+                  <div className="flex gap-2 shrink-0">
+                    <Button variant="outline" size="sm" onClick={() => openEdit(product)}
+                      className="h-8 w-8 p-0 rounded-lg hover:border-blue-500/50 hover:text-blue-400">
+                      <Edit className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleDelete(product.id)}
+                      className="h-8 w-8 p-0 rounded-lg hover:border-rose-500/50 hover:text-rose-400">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-sm truncate">{product.name}</h3>
-                  <p className="text-xs text-muted-foreground">{product.brand}</p>
-                </div>
-                <span className="font-bold text-sm text-emerald-500 font-numeric shrink-0">
-                  {formatCurrency(price)}
-                </span>
-                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${isLow ? "bg-amber-500/20 text-amber-400" : "bg-emerald-500/20 text-emerald-400"}`}>
-                  {isLow ? "⚠" : "✓"} {product.stock_quantity} left
-                </span>
-                <div className="flex gap-2 shrink-0">
-                  <Button variant="outline" size="sm" onClick={() => openEdit(product)}
-                    className="h-8 w-8 p-0 rounded-lg hover:border-violet-500/50 hover:text-violet-400">
-                    <Edit className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleDelete(product.id)}
-                    className="h-8 w-8 p-0 rounded-lg hover:border-rose-500/50 hover:text-rose-400">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3 pt-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+                className="h-9 rounded-xl"
+              >
+                Prev
+              </Button>
+              <span className="text-sm font-medium min-w-[100px] text-center">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages}
+                className="h-9 rounded-xl"
+              >
+                Next
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       {/* ── Add / Edit Dialog ──────────────────────────── */}
@@ -657,7 +733,7 @@ export default function ProductsPage() {
                         className="upload-zone flex items-center justify-center gap-3 h-10 px-4 cursor-pointer rounded-xl"
                         onClick={() => fileRef.current?.click()}
                       >
-                        <Upload className="h-4 w-4 text-violet-400" />
+                        <Upload className="h-4 w-4 text-blue-400" />
                         <span className="text-sm text-muted-foreground font-medium">Click to choose image (max 2 MB)</span>
                       </div>
                     </>
@@ -794,7 +870,7 @@ export default function ProductsPage() {
               <input type="checkbox"
                 checked={formData.price_includes_gst === "true"}
                 onChange={e => setFormData({ ...formData, price_includes_gst: e.target.checked ? "true" : "false" })}
-                className="w-4 h-4 rounded accent-violet-600" />
+                className="w-4 h-4 rounded accent-blue-600" />
               <div className="flex-1">
                 <p className="text-sm font-semibold">Price includes GST</p>
                 <p className="text-xs text-muted-foreground mt-0.5">Recommended for most retail products</p>

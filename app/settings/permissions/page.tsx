@@ -5,20 +5,20 @@ import { Button } from "@/components/ui/button"
 import { fetchAllPermissions, updateRolePermission } from "@/lib/services/rbac-service"
 import { useAuth } from "@/contexts/auth-context"
 import type { RolePermission } from "@/lib/types/rbac"
-import { Shield, Lock, Check, X, Save, RefreshCw, Info } from "lucide-react"
+import { Shield, Lock, Check, X, Save, RefreshCw, Info, LayoutDashboard, ShoppingCart, Package, Factory, Users, TrendingUp, FileText, Settings, KeyRound, Clock } from "lucide-react"
 import { toast } from "sonner"
 
 const MODULES = [
-  { key: "dashboard",       label: "Dashboard",       icon: "📊" },
-  { key: "pos",             label: "POS Billing",      icon: "🛒" },
-  { key: "products",        label: "Products",         icon: "📦" },
-  { key: "inventory",       label: "Inventory",        icon: "🏭" },
-  { key: "customers",       label: "Customers",        icon: "👥" },
-  { key: "sales",           label: "Sales Overview",   icon: "📈" },
-  { key: "reports",         label: "Reports",          icon: "📋" },
-  { key: "settings",        label: "Settings",         icon: "⚙️" },
-  { key: "users",           label: "User Management",  icon: "🔐" },
-  { key: "product_history", label: "Product History",  icon: "🕐" },
+  { key: "dashboard",       label: "Dashboard",       icon: LayoutDashboard },
+  { key: "pos",             label: "POS Billing",      icon: ShoppingCart },
+  { key: "products",        label: "Products",         icon: Package },
+  { key: "inventory",       label: "Inventory",        icon: Factory },
+  { key: "customers",       label: "Customers",        icon: Users },
+  { key: "sales",           label: "Sales Overview",   icon: TrendingUp },
+  { key: "reports",         label: "Reports",          icon: FileText },
+  { key: "settings",        label: "Settings",         icon: Settings },
+  { key: "users",           label: "User Management",  icon: KeyRound },
+  { key: "product_history", label: "Product History",  icon: Clock },
 ]
 
 const ACTIONS: Array<{ key: keyof Pick<RolePermission, "can_view" | "can_create" | "can_update" | "can_delete">; label: string }> = [
@@ -46,7 +46,7 @@ function ToggleCell({
           : "cursor-pointer hover:scale-110",
         checked
           ? locked
-            ? "bg-violet-500/30 text-violet-300"
+            ? "bg-blue-500/30 text-blue-300"
             : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30"
           : "bg-white/5 text-slate-600 border border-white/10 hover:border-slate-500/40 hover:text-slate-400",
       ].join(" ")}
@@ -158,7 +158,7 @@ export default function PermissionsPage() {
               </div>
               <h1 className="text-2xl font-bold text-white tracking-tight">Permissions Matrix</h1>
             </div>
-            <p className="text-violet-300/70 text-sm">
+            <p className="text-blue-300/70 text-sm">
               Configure page-level access for Manager and Cashier roles.
             </p>
           </div>
@@ -174,7 +174,7 @@ export default function PermissionsPage() {
               onClick={handleSave}
               disabled={saving || !dirty}
               className={`h-10 px-5 rounded-xl font-semibold text-white border-0 shadow-lg transition-all ${
-                dirty ? "gradient-primary glow-violet" : "bg-slate-600/50 cursor-not-allowed"
+                dirty ? "gradient-primary glow-blue" : "bg-slate-600/50 cursor-not-allowed"
               }`}
             >
               {saving ? (
@@ -222,8 +222,8 @@ export default function PermissionsPage() {
                 <th className="px-4 py-4 text-center min-w-[160px]">
                   <div className="flex flex-col items-center gap-1">
                     <div className="flex items-center gap-1.5">
-                      <Lock className="h-3 w-3 text-violet-400" />
-                      <span className="font-bold text-violet-300">Admin</span>
+                      <Lock className="h-3 w-3 text-blue-400" />
+                      <span className="font-bold text-blue-300">Admin</span>
                     </div>
                     <span className="text-[10px] text-muted-foreground">Full Access (Locked)</span>
                   </div>
@@ -260,7 +260,7 @@ export default function PermissionsPage() {
                   {/* Module name */}
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
-                      <span className="text-base">{mod.icon}</span>
+                      <mod.icon className="h-4 w-4 text-blue-400 shrink-0" />
                       <span className="font-semibold text-sm">{mod.label}</span>
                     </div>
                   </td>

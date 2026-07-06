@@ -82,7 +82,7 @@ export default function UsersPage() {
       <div className="page-header-banner">
         <div
           className="absolute top-[-40px] right-[-30px] w-40 h-40 rounded-full pointer-events-none"
-          style={{ background: "radial-gradient(circle,rgba(124,58,237,0.3),transparent 70%)" }}
+          style={{ background: "radial-gradient(circle,rgba(37,99,235,0.3),transparent 70%)" }}
         />
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -92,7 +92,7 @@ export default function UsersPage() {
               </div>
               <h1 className="text-2xl font-bold text-white tracking-tight">User Management</h1>
             </div>
-            <p className="text-violet-300/70 text-sm">
+            <p className="text-blue-300/70 text-sm">
               Manage all system users, roles, and account access.
             </p>
           </div>
@@ -120,9 +120,9 @@ export default function UsersPage() {
       {/* ── Stats Row ──────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
-          { label: "Total Users",  value: stats.total,    color: "text-violet-400", bg: "rgba(124,58,237,0.1)", border: "rgba(124,58,237,0.2)" },
+          { label: "Total Users",  value: stats.total,    color: "text-blue-400", bg: "rgba(37,99,235,0.1)", border: "rgba(37,99,235,0.2)" },
           { label: "Active",       value: stats.active,   color: "text-emerald-400", bg: "rgba(5,150,105,0.1)",  border: "rgba(5,150,105,0.2)" },
-          { label: "Admins",       value: stats.admins,   color: "text-violet-400", bg: "rgba(124,58,237,0.06)", border: "rgba(124,58,237,0.15)" },
+          { label: "Admins",       value: stats.admins,   color: "text-blue-400", bg: "rgba(37,99,235,0.06)", border: "rgba(37,99,235,0.15)" },
           { label: "Managers",     value: stats.managers, color: "text-sky-400",    bg: "rgba(2,132,199,0.08)", border: "rgba(2,132,199,0.2)" },
           { label: "Cashiers",     value: stats.cashiers, color: "text-amber-400",  bg: "rgba(217,119,6,0.08)", border: "rgba(217,119,6,0.2)" },
         ].map((s) => (
