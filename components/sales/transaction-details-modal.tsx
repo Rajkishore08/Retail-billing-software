@@ -81,7 +81,7 @@ export function TransactionDetailsModal({ transaction, isOpen, onClose, onTransa
       case "card":
         return "bg-blue-100 text-blue-800"
       case "upi":
-        return "bg-purple-100 text-purple-800"
+        return "bg-sky-100 text-sky-800"
       default:
         return "bg-gray-100 text-gray-800"
     }
@@ -233,28 +233,30 @@ export function TransactionDetailsModal({ transaction, isOpen, onClose, onTransa
                 <CardTitle className="text-lg">Items</CardTitle>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Item</TableHead>
-                      <TableHead className="text-right">Quantity</TableHead>
-                      <TableHead className="text-right">Unit Price</TableHead>
-                      <TableHead className="text-right">GST Rate</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {transaction.transaction_items?.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.product_name}</TableCell>
-                        <TableCell className="text-right">{item.quantity}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
-                        <TableCell className="text-right">{item.gst_rate}%</TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(item.total_price)}</TableCell>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Item</TableHead>
+                        <TableHead className="text-right">Quantity</TableHead>
+                        <TableHead className="text-right">Unit Price</TableHead>
+                        <TableHead className="text-right">GST Rate</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {transaction.transaction_items?.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium whitespace-nowrap">{item.product_name}</TableCell>
+                          <TableCell className="text-right">{item.quantity}</TableCell>
+                          <TableCell className="text-right whitespace-nowrap">{formatCurrency(item.unit_price)}</TableCell>
+                          <TableCell className="text-right">{item.gst_rate}%</TableCell>
+                          <TableCell className="text-right font-medium whitespace-nowrap">{formatCurrency(item.total_price)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
 

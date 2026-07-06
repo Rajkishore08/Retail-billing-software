@@ -1,13 +1,35 @@
 "use client"
 
 import type React from "react"
+import { useEffect } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { LoginForm } from "@/components/login-form"
 import { Sidebar } from "@/components/layout/sidebar"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/contexts/auth-context"
+import { ShoppingBag } from "lucide-react"
 
 export function AppContent({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    try {
+      const currentVersion = '1.0.1';
+      const storedVersion = localStorage.getItem('app_version');
+      if (storedVersion && storedVersion !== currentVersion) {
+        if ('caches' in window) {
+          caches.keys().then(names => {
+            names.forEach(name => caches.delete(name));
+          });
+        }
+        localStorage.setItem('app_version', currentVersion);
+        window.location.reload();
+      } else if (!storedVersion) {
+        localStorage.setItem('app_version', currentVersion);
+      }
+    } catch (e) {
+      console.error("Cache clean error:", e);
+    }
+  }, []);
+
   return (
     <ThemeProvider
       attribute="class"
@@ -25,29 +47,65 @@ export function AppContent({ children }: { children: React.ReactNode }) {
 function AppContentInner({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
 
-  // Show loading spinner
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: "linear-gradient(145deg,#060612 0%,#080f26 50%,#060612 100%)" }}
+      >
+        {/* Ambient blobs */}
+        <div
+          className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full pointer-events-none animate-orb-drift opacity-30"
+          style={{ background: "radial-gradient(circle, rgba(37,99,235,0.4), transparent 70%)" }}
+        />
+        <div
+          className="absolute bottom-1/4 right-1/4 w-48 h-48 rounded-full pointer-events-none animate-orb-drift opacity-20"
+          style={{ background: "radial-gradient(circle, rgba(5,150,105,0.35), transparent 70%)", animationDelay: "-5s" }}
+        />
+
+        <div className="text-center space-y-6 animate-fade-in relative z-10">
+          {/* Layered spinner */}
+          <div className="relative mx-auto w-20 h-20">
+            {/* Outer ring */}
+            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-blue-400 border-r-blue-500/50 animate-spin" />
+            {/* Middle ring */}
+            <div className="absolute inset-2 rounded-full border-2 border-transparent border-b-emerald-400 border-l-emerald-500/50 animate-spin" style={{ animationDirection: "reverse", animationDuration: "1.4s" }} />
+            {/* Inner brand icon */}
+            <div className="absolute inset-4 rounded-full gradient-primary flex items-center justify-center shadow-xl glow-blue">
+              <ShoppingBag className="h-5 w-5 text-white" />
+            </div>
+          </div>
+
+          <div>
+            <p className="text-white font-bold text-lg tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              Techno Bills
+            </p>
+            <p className="text-slate-500 text-sm mt-1.5 font-medium">Initializing POS System…</p>
+            {/* Progress dots */}
+            <div className="flex justify-center gap-1.5 mt-4">
+              {[0, 1, 2].map(i => (
+                <span
+                  key={i}
+                  className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce-subtle"
+                  style={{ animationDelay: `${i * 0.2}s` }}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     )
   }
 
-  // Show login if no user
   if (!user) {
     return <LoginForm />
   }
 
-  // Show main app
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background overflow-hidden">
       <Sidebar />
-      <main className="flex-1 overflow-auto">
-        <div className="p-6">{children}</div>
+      <main className="flex-1 overflow-auto min-w-0">
+        <div className="p-6 min-h-full">{children}</div>
       </main>
     </div>
   )

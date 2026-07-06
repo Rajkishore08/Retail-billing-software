@@ -1,20 +1,26 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Separator } from "@/components/ui/separator"
 import { supabase } from "@/lib/supabase-client"
-import { Users, Search, Plus, Edit, Trash2, Phone, Mail, MapPin, Gift, TrendingUp, Star, Award } from "lucide-react"
-import { motion, AnimatePresence } from "framer-motion"
+import { useAuth } from "@/contexts/auth-context"
+import {
+  Users, Search, Plus, Edit, Trash2, Phone, Mail, MapPin,
+  Gift, TrendingUp, Star, Award, CreditCard, IndianRupee,
+  CheckCircle2, AlertTriangle, Clock, Crown, X
+} from "lucide-react"
 import { toast } from "sonner"
+import { RouteGuard } from "@/components/auth/route-guard"
 
+// ─── Types ─────────────────────────────────────────────────────────────────
 type Customer = {
   id: string
   name: string
@@ -26,480 +32,479 @@ type Customer = {
   total_spent: number
   visit_count: number
   last_visit: string | null
+  outstanding_credit: number
   created_at: string
 }
 
+type CreditEntry = {
+  id: string
+  amount: number
+  entry_type: string
+  notes: string | null
+  created_at: string
+}
+
+// ─── Helper Functions ──────────────────────────────────────────────────────
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount)
+
+const getLoyaltyTier = (points: number) => {
+  if (points >= 500) return { name: "Platinum", gradient: "gradient-primary", glow: "glow-blue", text: "text-white", icon: Crown }
+  if (points >= 200) return { name: "Gold", gradient: "gradient-amber", glow: "glow-amber", text: "text-white", icon: Star }
+  if (points >= 50) return { name: "Silver", gradient: "gradient-sky", glow: "glow-sky", text: "text-white", icon: Award }
+  return { name: "Bronze", gradient: "bg-slate-700", glow: "", text: "text-slate-200", icon: Gift }
+}
+
+const initials = (name: string) => name.split(/\s+/).map(w => w[0]).join("").slice(0,2).toUpperCase()
+
+const placeholderClass = (name: string) => {
+  const classes = ["img-placeholder-blue","img-placeholder-emerald","img-placeholder-amber","img-placeholder-sky","img-placeholder-rose"]
+  return classes[(name.charCodeAt(0) || 0) % classes.length]
+}
+
 export default function CustomersPage() {
+  const { profile } = useAuth()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  
   const [stats, setStats] = useState({
     totalCustomers: 0,
     totalLoyaltyPoints: 0,
     averageSpent: 0,
-    topCustomer: null as Customer | null,
+    totalOutstandingCredit: 0,
   })
+
+  // Credit ledger dialog
+  const [showCreditDialog, setShowCreditDialog] = useState(false)
+  const [creditCustomer, setCreditCustomer] = useState<Customer | null>(null)
+  const [creditEntries, setCreditEntries] = useState<CreditEntry[]>([])
+  const [creditLoading, setCreditLoading] = useState(false)
+  const [payAmount, setPayAmount] = useState("")
+  const [payNotes, setPayNotes] = useState("")
+  const [paying, setPaying] = useState(false)
 
   const [formData, setFormData] = useState({
-    name: "",
-    phone: "",
-    email: "",
-    address: "",
-    date_of_birth: "",
+    name: "", phone: "", email: "", address: "", date_of_birth: "",
   })
 
-  useEffect(() => {
-    fetchCustomers()
-    fetchStats()
-  }, [])
+  useEffect(() => { fetchCustomers() }, [])
 
   const fetchCustomers = async () => {
-    const { data, error } = await supabase.from("customers").select("*").order("created_at", { ascending: false })
+    try {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("*")
+        .order("created_at", { ascending: false })
 
-    if (error) {
-      console.error("Error fetching customers:", error)
-      return
+      if (error) throw error
+      const rows = data || []
+      setCustomers(rows)
+
+      setStats({
+        totalCustomers: rows.length,
+        totalLoyaltyPoints: rows.reduce((s, c) => s + (c.loyalty_points || 0), 0),
+        averageSpent: rows.length > 0 ? rows.reduce((s, c) => s + (c.total_spent || 0), 0) / rows.length : 0,
+        totalOutstandingCredit: rows.reduce((s, c) => s + (c.outstanding_credit || 0), 0),
+      })
+    } catch {
+      toast.error("Failed to load customers")
+    } finally {
+      setLoading(false)
     }
-
-    setCustomers(data || [])
-    setLoading(false)
   }
 
-  const fetchStats = async () => {
-    const { data, error } = await supabase.from("customers").select("*").order("total_spent", { ascending: false })
-
-    if (error) {
-      console.error("Error fetching customer stats:", error)
-      return
-    }
-
-    const totalCustomers = data?.length || 0
-    const totalLoyaltyPoints = data?.reduce((sum, c) => sum + c.loyalty_points, 0) || 0
-    const averageSpent =
-      totalCustomers > 0 ? (data?.reduce((sum, c) => sum + c.total_spent, 0) || 0) / totalCustomers : 0
-    const topCustomer = data?.[0] || null
-
-    setStats({
-      totalCustomers,
-      totalLoyaltyPoints,
-      averageSpent,
-      topCustomer,
-    })
-  }
+  const ITEMS_PER_PAGE = 12
 
   const filteredCustomers = customers.filter(
-    (customer) =>
-      customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.phone.includes(searchTerm) ||
-      customer.email?.toLowerCase().includes(searchTerm.toLowerCase()),
+    (c) =>
+      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.phone.includes(searchTerm) ||
+      (c.email || "").toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
+  const paginatedCustomers = filteredCustomers.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  )
+  const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE)
+
   const resetForm = () => {
-    setFormData({
-      name: "",
-      phone: "",
-      email: "",
-      address: "",
-      date_of_birth: "",
-    })
+    setFormData({ name: "", phone: "", email: "", address: "", date_of_birth: "" })
     setEditingCustomer(null)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!formData.name.trim() || !formData.phone.trim()) { toast.error("Name & Phone required"); return }
 
-    const customerData = {
-      name: formData.name,
-      phone: formData.phone,
-      email: formData.email || null,
-      address: formData.address || null,
-      date_of_birth: formData.date_of_birth || null,
-    }
-
+    setSaving(true)
     try {
-      if (editingCustomer) {
-        const { error } = await supabase.from("customers").update(customerData).eq("id", editingCustomer.id)
-
-        if (error) throw error
-      } else {
-        const { error } = await supabase.from("customers").insert(customerData)
-
-        if (error) throw error
+      const payload = {
+        name: formData.name.trim(),
+        phone: formData.phone.trim(),
+        email: formData.email.trim() || null,
+        address: formData.address.trim() || null,
+        date_of_birth: formData.date_of_birth || null,
       }
 
-      fetchCustomers()
-      fetchStats()
+      const p2 = {
+        name: formData.name.trim(),
+        phone: formData.phone.trim(),
+        email: formData.email.trim() || null,
+      }
+
+      const upsert = async (data: any) => editingCustomer
+        ? supabase.from("customers").update(data).eq("id", editingCustomer.id)
+        : supabase.from("customers").insert(data)
+
+      let { error } = await upsert(payload)
+      if (error && (error.code === "42703" || error.message?.includes("column"))) {
+        const retry = await upsert(p2)
+        error = retry.error
+      }
+
+      if (error) throw error
+      
+      toast.success(editingCustomer ? "Customer updated!" : "Customer added!")
       setShowAddDialog(false)
       resetForm()
-    } catch (error: any) {
-      console.error("Error saving customer:", error)
-      if (error.code === "23505") {
-        toast.error("Phone number already exists!")
-      } else {
-                  toast.error("Error saving customer")
-      }
+      fetchCustomers()
+    } catch (err: any) {
+      toast.error(err.code === "23505" ? "Phone number already exists" : "Save failed")
+    } finally {
+      setSaving(false)
     }
   }
 
-  const handleEdit = (customer: Customer) => {
-    setFormData({
-      name: customer.name,
-      phone: customer.phone,
-      email: customer.email || "",
-      address: customer.address || "",
-      date_of_birth: customer.date_of_birth || "",
-    })
-    setEditingCustomer(customer)
-    setShowAddDialog(true)
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete customer?")) return
+    const { error } = await supabase.from("customers").delete().eq("id", id)
+    if (error) toast.error("Failed to delete")
+    else { toast.success("Customer deleted"); fetchCustomers() }
   }
 
-  const handleDelete = async (customerId: string) => {
+  // ── Credit Ledger ──────────────────────────────────────────────────
+  const openCreditDialog = async (customer: Customer) => {
+    setCreditCustomer(customer)
+    setShowCreditDialog(true)
+    setPayAmount("")
+    setPayNotes("")
+    setCreditLoading(true)
     try {
-      const { error } = await supabase
-        .from("customers")
-        .delete()
-        .eq("id", customerId);
-
-      if (error) {
-        console.error("Error deleting customer:", error);
-        toast.error("Failed to delete customer: " + (error.message || JSON.stringify(error)));
-        return;
-      }
-
-      toast.success("Customer deleted successfully!");
-      // Refresh the customer list
-      fetchCustomers();
-    } catch (err) {
-      console.error("Unexpected error deleting customer:", err);
-      toast.error("Unexpected error: " + (err instanceof Error ? err.message : JSON.stringify(err)));
-    }
+      const { data } = await supabase
+        .from("credit_ledger")
+        .select("*")
+        .eq("customer_id", customer.id)
+        .order("created_at", { ascending: false })
+        .limit(30)
+      setCreditEntries(data || [])
+    } finally { setCreditLoading(false) }
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount)
-  }
+  const handleMarkPayment = async () => {
+    if (!creditCustomer || !payAmount || isNaN(parseFloat(payAmount))) return
+    const amt = parseFloat(payAmount)
+    if (amt <= 0 || amt > (creditCustomer.outstanding_credit || 0)) { toast.error("Invalid amount"); return }
 
-  const getLoyaltyTier = (points: number) => {
-    if (points >= 500) return { name: "Platinum", color: "bg-purple-100 text-purple-800", icon: Award }
-    if (points >= 200) return { name: "Gold", color: "bg-yellow-100 text-yellow-800", icon: Star }
-    if (points >= 50) return { name: "Silver", color: "bg-gray-100 text-gray-800", icon: Gift }
-    return { name: "Bronze", color: "bg-orange-100 text-orange-800", icon: Gift }
+    setPaying(true)
+    try {
+      await supabase.from("credit_ledger").insert({
+        customer_id: creditCustomer.id,
+        amount: -amt,
+        entry_type: "payment_received",
+        notes: payNotes || null,
+        created_by: profile?.id || null,
+      })
+
+      const newCredit = Math.max(0, (creditCustomer.outstanding_credit || 0) - amt)
+      await supabase.from("customers").update({ outstanding_credit: newCredit }).eq("id", creditCustomer.id)
+
+      toast.success("Payment recorded!")
+      setPayAmount("")
+      setPayNotes("")
+      fetchCustomers()
+      openCreditDialog({ ...creditCustomer, outstanding_credit: newCredit })
+    } catch { toast.error("Payment failed") }
+    finally { setPaying(false) }
   }
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">Customers</h1>
-            <p className="text-muted-foreground">Manage customer relationships and loyalty</p>
-          </div>
+      <div className="space-y-6 animate-fade-in">
+        <div className="h-9 skeleton w-48 rounded-xl" />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+          {[1,2,3,4].map(i => <div key={i} className="h-28 skeleton rounded-2xl" />)}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-4">
-                <div className="space-y-2">
-                  <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse"></div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {[1,2,3,4,5,6].map(i => <div key={i} className="h-48 skeleton rounded-2xl" />)}
         </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex justify-between items-center"
-      >
+    <RouteGuard module="customers">
+    <div className="space-y-6 animate-fade-in-up">
+      {/* ── Header ────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Customers</h1>
-          <p className="text-muted-foreground">Manage customer relationships and loyalty</p>
+          <h1 className="text-3xl font-bold tracking-tight">Customers</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Manage your store's relationships, loyalty, and credit.
+          </p>
         </div>
-        <Dialog
-          open={showAddDialog}
-          onOpenChange={(open) => {
-            setShowAddDialog(open)
-            if (!open) resetForm()
-          }}
+        <Button
+          onClick={() => { resetForm(); setShowAddDialog(true) }}
+          className="h-10 px-5 rounded-xl font-semibold gradient-sky border-0 shadow-md hover:opacity-90 glow-sky text-white"
         >
-          <DialogTrigger asChild>
-            <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Customer
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>{editingCustomer ? "Edit Customer" : "Add New Customer"}</DialogTitle>
-              <DialogDescription>
-                {editingCustomer ? "Update customer information" : "Add a new customer to your database"}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number *</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+91-9876543210"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="customer@example.com"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
-                <Textarea
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  placeholder="Full address..."
-                  rows={3}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="date_of_birth">Date of Birth</Label>
-                <Input
-                  id="date_of_birth"
-                  type="date"
-                  value={formData.date_of_birth}
-                  onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                />
-              </div>
-              <div className="flex justify-end space-x-2">
-                <Button type="button" variant="outline" onClick={() => setShowAddDialog(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-gradient-to-r from-blue-600 to-purple-600">
-                  {editingCustomer ? "Update" : "Add"} Customer
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </motion.div>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Customer
+        </Button>
+      </div>
 
-      {/* Stats Cards */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
-      >
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/20 dark:to-blue-900/20 border-blue-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Users className="h-8 w-8 text-blue-600" />
+      {/* ── Stats Cards ───────────────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        {[
+          { label: "Total Customers", val: stats.totalCustomers, icon: Users, color: "#38bdf8", bg: "rgba(2,132,199,0.15)", glow: "glow-sky" },
+          { label: "Loyalty Points", val: stats.totalLoyaltyPoints, icon: Gift, color: "#60a5fa", bg: "rgba(59,130,246,0.15)", glow: "glow-blue" },
+          { label: "Avg Spent", val: formatCurrency(stats.averageSpent), icon: TrendingUp, color: "#34d399", bg: "rgba(5,150,105,0.15)", glow: "glow-emerald" },
+          { label: "Credit Due", val: formatCurrency(stats.totalOutstandingCredit), icon: CreditCard, color: "#fb7185", bg: "rgba(225,29,72,0.15)", glow: stats.totalOutstandingCredit > 0 ? "glow-rose" : "" },
+        ].map((s, i) => (
+          <Card key={i} className={`border-0 overflow-hidden card-hover stagger-${i+1} ${s.glow}`} style={{ background: "rgba(255,255,255,0.03)" }}>
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: s.bg }}>
+                <s.icon className="h-6 w-6" style={{ color: s.color }} />
+              </div>
               <div>
-                <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{stats.totalCustomers}</p>
-                <p className="text-sm text-blue-700 dark:text-blue-300">Total Customers</p>
+                <p className="text-2xl font-bold" style={{ fontFamily: "'Space Grotesk',sans-serif", color: s.color }}>{s.val}</p>
+                <p className="text-sm font-medium text-muted-foreground">{s.label}</p>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/20 dark:to-purple-900/20 border-purple-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Gift className="h-8 w-8 text-purple-600" />
-              <div>
-                <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                  {stats.totalLoyaltyPoints.toLocaleString()}
-                </p>
-                <p className="text-sm text-purple-700 dark:text-purple-300">Total Loyalty Points</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/20 dark:to-green-900/20 border-green-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <TrendingUp className="h-8 w-8 text-green-600" />
-              <div>
-                <p className="text-2xl font-bold text-green-900 dark:text-green-100">
-                  {formatCurrency(stats.averageSpent)}
-                </p>
-                <p className="text-sm text-green-700 dark:text-green-300">Average Spent</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/20 dark:to-orange-900/20 border-orange-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Award className="h-8 w-8 text-orange-600" />
-              <div>
-                <p className="text-lg font-bold text-orange-900 dark:text-orange-100 truncate">
-                  {stats.topCustomer?.name || "N/A"}
-                </p>
-                <p className="text-sm text-orange-700 dark:text-orange-300">Top Customer</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Search */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="relative max-w-md"
-      >
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+      {/* ── Search ────────────────────────────────────────── */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search customers by name, phone, or email..."
+          placeholder="Search by name, phone, or email…"
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10"
+          onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+          className="pl-10 h-11 rounded-xl bg-card border-border"
         />
-      </motion.div>
+        {searchTerm && (
+          <button onClick={() => { setSearchTerm(""); setCurrentPage(1); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
 
-      {/* Customers Grid */}
-      <AnimatePresence>
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-        >
-          {filteredCustomers.map((customer, index) => {
-            const tier = getLoyaltyTier(customer.loyalty_points)
-            const TierIcon = tier.icon
+      {/* ── Customers Grid ────────────────────────────────── */}
+      {filteredCustomers.length === 0 ? (
+        <div className="text-center py-20 bg-card rounded-2xl border border-border">
+          <Users className="h-14 w-14 mx-auto text-muted-foreground/40 mb-4" />
+          <h3 className="text-lg font-semibold">No customers found</h3>
+          <p className="text-muted-foreground text-sm mb-6">Add your first customer to get started.</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {paginatedCustomers.map((customer, i) => {
+              const tier = getLoyaltyTier(customer.loyalty_points || 0)
+              const TierIcon = tier.icon
+              const hasCredit = (customer.outstanding_credit || 0) > 0
 
-            return (
-              <motion.div
-                key={customer.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                whileHover={{ y: -5, transition: { duration: 0.2 } }}
-              >
-                <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500">
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          {customer.name}
-                          <Badge className={`${tier.color} text-xs`}>
-                            <TierIcon className="h-3 w-3 mr-1" />
-                            {tier.name}
-                          </Badge>
-                        </CardTitle>
-                        <div className="flex items-center text-sm text-muted-foreground mt-1">
-                          <Phone className="h-3 w-3 mr-1" />
-                          {customer.phone}
+              return (
+                <Card key={customer.id} className="border-border bg-card rounded-2xl overflow-hidden card-hover" style={{ animationDelay: `${i*0.05}s` }}>
+                  <CardContent className="p-0">
+                    {/* Top Banner */}
+                    <div className={`h-16 w-full ${placeholderClass(customer.name)} opacity-80 relative`} />
+                    
+                    <div className="px-5 pb-5">
+                      {/* Avatar & Actions */}
+                      <div className="flex justify-between items-start -mt-8 mb-3">
+                        <div className={`w-16 h-16 rounded-xl ${placeholderClass(customer.name)} shadow-lg border-2 border-background flex items-center justify-center text-xl font-bold text-white`}>
+                          {initials(customer.name)}
                         </div>
-                      </div>
-                      <div className="flex space-x-1">
-                        <Button size="sm" variant="outline" onClick={() => handleEdit(customer)}>
-                          <Edit className="h-3 w-3" />
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => handleDelete(customer.id)}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {customer.email && (
-                        <div className="flex items-center text-sm text-muted-foreground">
-                          <Mail className="h-3 w-3 mr-2" />
-                          {customer.email}
-                        </div>
-                      )}
-                      {customer.address && (
-                        <div className="flex items-start text-sm text-muted-foreground">
-                          <MapPin className="h-3 w-3 mr-2 mt-0.5 flex-shrink-0" />
-                          <span className="line-clamp-2">{customer.address}</span>
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-2 gap-4 pt-2 border-t">
-                        <div className="text-center">
-                          <div className="flex items-center justify-center">
-                            <Gift className="h-4 w-4 text-purple-600 mr-1" />
-                            <span className="text-lg font-bold text-purple-600">{customer.loyalty_points}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">Points</p>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-bold text-green-600">{formatCurrency(customer.total_spent)}</div>
-                          <p className="text-xs text-muted-foreground">Total Spent</p>
+                        <div className="flex gap-1.5 mt-9">
+                          <Button size="icon" variant="ghost" onClick={() => { setEditingCustomer(customer); setFormData({name:customer.name, phone:customer.phone, email:customer.email||"", address:customer.address||"", date_of_birth:customer.date_of_birth||""}); setShowAddDialog(true) }} className="h-7 w-7 rounded-lg text-slate-400 hover:text-white bg-white/5">
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" onClick={() => handleDelete(customer.id)} className="h-7 w-7 rounded-lg text-slate-400 hover:text-rose-400 bg-white/5">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4 text-center">
+                      {/* Name & Tier */}
+                      <div className="mb-4">
+                        <h3 className="font-bold text-lg leading-tight truncate">{customer.name}</h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${tier.gradient} ${tier.text}`}>
+                            <TierIcon className="h-2.5 w-2.5" /> {tier.name}
+                          </span>
+                          {hasCredit && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500 text-white shadow-lg shadow-rose-500/20">
+                              <AlertTriangle className="h-2.5 w-2.5" /> Credit Due
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Contact Info */}
+                      <div className="space-y-1.5 mb-5 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 shrink-0" />{customer.phone}</div>
+                        {customer.email && <div className="flex items-center gap-2 truncate"><Mail className="h-3.5 w-3.5 shrink-0" />{customer.email}</div>}
+                      </div>
+
+                      {/* Mini Stats Grid */}
+                      <div className="grid grid-cols-2 gap-3 mb-5 p-3 rounded-xl bg-white/5 border border-white/5">
                         <div>
-                          <div className="text-sm font-medium">{customer.visit_count}</div>
-                          <p className="text-xs text-muted-foreground">Visits</p>
+                          <p className="text-xs text-muted-foreground mb-0.5">Points</p>
+                          <p className="font-semibold text-blue-400">{customer.loyalty_points || 0}</p>
                         </div>
                         <div>
-                          <div className="text-sm font-medium">
-                            {customer.last_visit ? new Date(customer.last_visit).toLocaleDateString("en-IN") : "Never"}
-                          </div>
-                          <p className="text-xs text-muted-foreground">Last Visit</p>
+                          <p className="text-xs text-muted-foreground mb-0.5">Spent</p>
+                          <p className="font-semibold text-emerald-400">{formatCurrency(customer.total_spent || 0)}</p>
                         </div>
                       </div>
+
+                      {/* Credit Button */}
+                      <Button 
+                        onClick={() => openCreditDialog(customer)}
+                        variant={hasCredit ? "destructive" : "secondary"}
+                        className={`w-full h-9 text-xs rounded-xl font-bold ${hasCredit ? "bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:bg-rose-500/30" : ""}`}
+                      >
+                        <CreditCard className="h-3.5 w-3.5 mr-2" />
+                        {hasCredit ? `Pay ${formatCurrency(customer.outstanding_credit)}` : "Credit Ledger"}
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
-              </motion.div>
-            )
-          })}
-        </motion.div>
-      </AnimatePresence>
-
-      {filteredCustomers.length === 0 && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">
-          <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium mb-2">No customers found</h3>
-          <p className="text-muted-foreground mb-4">
-            {searchTerm ? "Try adjusting your search terms" : "Get started by adding your first customer"}
-          </p>
-          <Button onClick={() => setShowAddDialog(true)} className="bg-gradient-to-r from-blue-600 to-purple-600">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Customer
-          </Button>
-        </motion.div>
+              )
+            })}
+          </div>
+          
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3 pt-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+                className="h-9 rounded-xl"
+              >
+                Prev
+              </Button>
+              <span className="text-sm font-medium min-w-[100px] text-center">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages}
+                className="h-9 rounded-xl"
+              >
+                Next
+              </Button>
+            </div>
+          )}
+        </>
       )}
+
+      {/* ── Add / Edit Dialog ─────────────────────────────── */}
+      <Dialog open={showAddDialog} onOpenChange={v => { setShowAddDialog(v); if(!v) resetForm() }}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>{editingCustomer ? "Edit Customer" : "New Customer"}</DialogTitle>
+            <DialogDescription>Customer details and loyalty info.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+            <div className="space-y-1.5">
+              <Label>Full Name *</Label>
+              <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="h-10 rounded-xl bg-card border-border" required />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Phone Number *</Label>
+              <Input value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="h-10 rounded-xl bg-card border-border" required />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Email (Optional)</Label>
+              <Input type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className="h-10 rounded-xl bg-card border-border" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Address (Optional)</Label>
+              <Textarea value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} className="rounded-xl bg-card border-border" rows={2} />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button type="submit" disabled={saving} className="flex-1 gradient-sky border-0 rounded-xl font-bold shadow-lg glow-sky">{saving ? "Saving..." : "Save Customer"}</Button>
+              <Button type="button" variant="outline" onClick={() => setShowAddDialog(false)} className="flex-1 rounded-xl font-bold">Cancel</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Credit Ledger Dialog ──────────────────────────── */}
+      <Dialog open={showCreditDialog} onOpenChange={setShowCreditDialog}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-rose-500" />
+              {creditCustomer?.name}'s Ledger
+            </DialogTitle>
+          </DialogHeader>
+
+          {creditCustomer && (
+            <div className={`p-4 rounded-xl text-center border ${(creditCustomer.outstanding_credit || 0) > 0 ? "bg-rose-500/10 border-rose-500/20" : "bg-emerald-500/10 border-emerald-500/20"}`}>
+              <p className={`text-3xl font-bold font-mono ${(creditCustomer.outstanding_credit || 0) > 0 ? "text-rose-400" : "text-emerald-400"}`}>
+                {formatCurrency(customers.find(c => c.id === creditCustomer.id)?.outstanding_credit || creditCustomer.outstanding_credit || 0)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Outstanding Balance</p>
+            </div>
+          )}
+
+          {(customers.find(c => c.id === creditCustomer?.id)?.outstanding_credit || 0) > 0 && (
+            <div className="space-y-3 mt-4">
+              <Label className="font-bold flex items-center gap-1.5 text-emerald-400"><CheckCircle2 className="h-4 w-4" /> Record Payment</Label>
+              <div className="flex gap-2">
+                <Input type="number" placeholder="Amount (₹)" value={payAmount} onChange={e => setPayAmount(e.target.value)} className="h-10 flex-1 rounded-xl bg-card border-border" />
+                <Button onClick={handleMarkPayment} disabled={paying} className="h-10 rounded-xl gradient-emerald border-0 shadow-lg glow-emerald font-bold">Pay</Button>
+              </div>
+              <Input placeholder="Notes (optional)" value={payNotes} onChange={e => setPayNotes(e.target.value)} className="h-9 text-sm rounded-xl bg-card border-border" />
+            </div>
+          )}
+
+          <Separator className="my-4 border-white/5" />
+
+          <div className="space-y-3">
+            <Label className="font-bold text-sm">Transaction History</Label>
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+              {creditEntries.map(e => (
+                <div key={e.id} className="flex justify-between items-center p-3 rounded-xl bg-white/5 border border-white/5">
+                  <div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${e.amount < 0 ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"}`}>
+                      {e.entry_type.replace("_", " ").toUpperCase()}
+                    </span>
+                    <p className="text-[10px] text-muted-foreground mt-1">{new Date(e.created_at).toLocaleDateString("en-IN")}</p>
+                  </div>
+                  <span className={`font-bold font-mono text-sm ${e.amount < 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                    {e.amount < 0 ? "-" : "+"}₹{Math.abs(e.amount).toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
+    </RouteGuard>
   )
 }

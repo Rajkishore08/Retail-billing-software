@@ -126,7 +126,7 @@ export function PerformanceMonitor() {
         
         <div className="flex justify-between items-center">
           <span className="text-xs">Memory Usage:</span>
-          <Badge className="text-xs bg-purple-100 text-purple-800">
+          <Badge className="text-xs bg-cyan-100 text-cyan-800">
             {metrics.memoryUsage.toFixed(1)}MB
           </Badge>
         </div>

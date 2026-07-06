@@ -12,9 +12,13 @@ import { CustomerSelector } from "./customer-selector"
 import { ReceiptPreview } from "./receipt-preview"
 import { LoyaltyRedemption } from "./loyalty-redemption"
 import { DiscountManager } from "./discount-manager"
-import { Search, Plus, Minus, Trash2, CreditCard, Smartphone, Banknote, Receipt, Tag } from "lucide-react"
+import { Search, Plus, Minus, Trash2, CreditCard, Smartphone, Banknote, Receipt, Tag, AlertTriangle, Barcode, Layers, Scan, CheckCircle2 } from "lucide-react"
 import { toast } from "sonner"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { getAllProductImages, placeholderClass, initials } from "@/lib/product-image-store"
+import { getStoreQrImage } from "@/lib/store-image-store"
 
 type Product = {
   id: string
@@ -29,6 +33,7 @@ type Product = {
   hsn_code: string
   brand: string
   barcode?: string
+  sale_unit?: string
 }
 
 type CartItem = {
@@ -44,15 +49,25 @@ type Customer = {
   email: string | null
   loyalty_points: number
   total_spent: number
+  outstanding_credit?: number
 }
 
-type PaymentMethod = "cash" | "card" | "upi"
+type PaymentMethod = "cash" | "card" | "upi" | "credit"
 
 export function POSInterface() {
   const { profile } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
   const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm)
+    }, 300)
+    return () => clearTimeout(handler)
+  }, [searchTerm])
+
   const [selectedBrand, setSelectedBrand] = useState<string>("all")
   const [brands, setBrands] = useState<string[]>([])
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash")
@@ -76,6 +91,76 @@ export function POSInterface() {
   const [isScanning, setIsScanning] = useState(false)
   const barcodeInputRef = useRef<HTMLInputElement>(null)
 
+  // Add product dialog state
+  const [showAddProductDialog, setShowAddProductDialog] = useState(false)
+  const [storeSettings, setStoreSettings] = useState<Record<string, string>>({})
+  const [productImages, setProductImages] = useState<Record<string, string>>({})
+  const [newProductForm, setNewProductForm] = useState({
+    name: "",
+    price: "",
+    cost_price: "",
+    selling_price: "",
+    stock_quantity: "",
+    min_stock_level: "5",
+    gst_rate: "18",
+    price_includes_gst: true,
+    hsn_code: "",
+    brand: "",
+    barcode: "",
+    sale_unit: "pcs",
+  })
+
+  const handleAddNewProductSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const data = {
+      name: newProductForm.name,
+      price: parseFloat(newProductForm.price),
+      cost_price: newProductForm.cost_price ? parseFloat(newProductForm.cost_price) : null,
+      mrp: parseFloat(newProductForm.price),
+      selling_price: newProductForm.selling_price ? parseFloat(newProductForm.selling_price) : parseFloat(newProductForm.price),
+      stock_quantity: parseFloat(newProductForm.stock_quantity),
+      min_stock_level: parseFloat(newProductForm.min_stock_level),
+      gst_rate: parseFloat(newProductForm.gst_rate),
+      price_includes_gst: newProductForm.price_includes_gst,
+      hsn_code: newProductForm.hsn_code || "999999",
+      brand: newProductForm.brand || "Generic",
+      barcode: newProductForm.barcode || null,
+      sale_unit: newProductForm.sale_unit,
+    }
+
+    try {
+      const { data: dup } = await supabase.from("products").select("id,name").eq("name", newProductForm.name).single()
+      if (dup) { toast.error(`"${newProductForm.name}" already exists`); return }
+      if (newProductForm.barcode) {
+        const { data: dupB } = await supabase.from("products").select("id,name").eq("barcode", newProductForm.barcode).single()
+        if (dupB) { toast.error(`Barcode already used by "${dupB.name}"`); return }
+      }
+
+      const { data: inserted, error } = await supabase.from("products").insert(data).select("id").single()
+      if (error) { toast.error(`Failed to add product: ${error.message}`); return }
+
+      toast.success("Product added successfully!")
+      setShowAddProductDialog(false)
+      setNewProductForm({
+        name: "",
+        price: "",
+        cost_price: "",
+        selling_price: "",
+        stock_quantity: "",
+        min_stock_level: "5",
+        gst_rate: "18",
+        price_includes_gst: true,
+        hsn_code: "",
+        brand: "",
+        barcode: "",
+        sale_unit: "pcs",
+      })
+      fetchProducts()
+    } catch (err: any) {
+      toast.error(`Error: ${err?.message || "Unknown"}`)
+    }
+  }
+
   // Memoized filtered products for better performance
   const filteredProducts = useMemo(() => {
     let filtered = products
@@ -86,8 +171,8 @@ export function POSInterface() {
     }
     
     // Filter by search term (combined product search and barcode)
-    if (searchTerm.trim()) {
-      const searchLower = searchTerm.toLowerCase()
+    if (debouncedSearch.trim()) {
+      const searchLower = debouncedSearch.toLowerCase()
       filtered = filtered.filter(
         (product) => 
           product.name.toLowerCase().includes(searchLower) || 
@@ -98,7 +183,7 @@ export function POSInterface() {
     }
     
     return filtered
-  }, [products, searchTerm, selectedBrand])
+  }, [products, debouncedSearch, selectedBrand])
 
   // Memoized totals calculation
   const totals = useMemo(() => {
@@ -175,25 +260,18 @@ export function POSInterface() {
   const fetchProducts = useCallback(async () => {
     try {
       setProductsLoading(true)
-      console.log("Fetching products...")
-      
-      // Use optimized query with caching
       const { data, error } = await supabase
         .from('products')
         .select('*')
         .gt('stock_quantity', 0)
         .order('name')
-        .abortSignal(new AbortController().signal) // Add abort signal for better performance
 
       if (error) {
         console.error("Error fetching products:", error)
         return
       }
 
-      console.log("Products fetched successfully:", data?.length || 0)
       setProducts(data || [])
-      
-      // Extract unique brands
       const uniqueBrands = [...new Set((data || []).map((p: Product) => p.brand || 'Generic'))].sort() as string[]
       setBrands(uniqueBrands)
     } catch (error) {
@@ -205,11 +283,9 @@ export function POSInterface() {
 
   const fetchLastBillNumber = useCallback(async () => {
     try {
-      console.log("Fetching last bill number...")
       const { data, error } = await supabase.rpc('get_last_bill_number')
 
       if (error) {
-        console.error("Error fetching last bill number:", error)
         // Fallback to direct query if RPC fails
         const { data: fallbackData, error: fallbackError } = await supabase
           .from('transactions')
@@ -220,7 +296,6 @@ export function POSInterface() {
           .single()
         
         if (fallbackError) {
-          console.error("Fallback query also failed:", fallbackError)
           lastBillNumberRef.current = 'NM 0000'
           return
         }
@@ -232,11 +307,9 @@ export function POSInterface() {
       }
 
       if (data) {
-        console.log("Last bill number fetched:", data)
         lastBillNumberRef.current = data
       }
     } catch (error) {
-      console.error("Error in fetchLastBillNumber:", error)
       lastBillNumberRef.current = 'NM 0000'
     }
   }, [])
@@ -249,10 +322,24 @@ export function POSInterface() {
     return formattedNumber
   }, [])
 
+  const fetchStoreSettings = useCallback(async () => {
+    try {
+      const { data } = await supabase.from("settings").select("key, value")
+      if (data) {
+        const settings = data.reduce((acc, s) => { acc[s.key] = s.value; return acc }, {} as Record<string, string>)
+        setStoreSettings(settings)
+      }
+    } catch (error) {
+      console.error("Error fetching store settings:", error)
+    }
+  }, [])
+
   useEffect(() => {
     fetchProducts()
     fetchLastBillNumber()
-  }, [fetchProducts, fetchLastBillNumber])
+    fetchStoreSettings()
+    setProductImages(getAllProductImages())
+  }, [fetchProducts, fetchLastBillNumber, fetchStoreSettings])
 
   const addToCart = useCallback((product: Product) => {
     const existingItem = cart.find((item) => item.product.id === product.id)
@@ -272,11 +359,6 @@ export function POSInterface() {
   }, [cart])
 
   const updateQuantity = useCallback((productId: string, newQuantity: number) => {
-    if (newQuantity <= 0) {
-      removeFromCart(productId)
-      return
-    }
-
     setCart(prev => prev.map((item) => {
       if (item.product.id === productId) {
         return {
@@ -311,6 +393,11 @@ export function POSInterface() {
       return
     }
 
+    if (paymentMethod === "credit" && !selectedCustomer) {
+      toast.error("Credit payment requires a customer to be selected")
+      return
+    }
+
     if (!profile?.id) {
       toast.error("Please log in to process payments")
       return
@@ -319,40 +406,12 @@ export function POSInterface() {
     setLoading(true)
 
     try {
-      // Generate invoice number
       const invoiceNumber = getNextBillNumber()
 
-      // Check if database is properly set up
-      console.log("Checking database setup...")
-      const { data: dbCheck, error: dbCheckError } = await supabase
-        .from('products')
-        .select('hsn_code, brand, price_includes_gst')
-        .limit(1)
-      
-      if (dbCheckError) {
-        console.error("Database setup check failed:", dbCheckError)
-        toast.error("Database not properly configured. Please run the database setup script.")
-        return
-      }
-      
-      console.log("Database setup check passed:", dbCheck)
-
-      // Debug logging
-      console.log("Processing payment with data:", {
-        invoiceNumber,
-        profile: profile?.id,
-        selectedCustomer: selectedCustomer?.id,
-        subtotal,
-        gstAmount,
-        roundedTotal,
-        paymentMethod,
-        cartLength: cart.length
-      })
-
-      // Create transaction
+      // ── Build transaction record ────────────────────────────────
       const transactionData = {
         invoice_number: invoiceNumber,
-        cashier_id: profile?.id,
+        cashier_id: profile.id,
         customer_id: selectedCustomer?.id || null,
         customer_name: selectedCustomer?.name || null,
         customer_phone: selectedCustomer?.phone || null,
@@ -372,9 +431,7 @@ export function POSInterface() {
         status: "completed" as const,
       }
 
-      console.log("Transaction data:", transactionData)
-
-      console.log("Attempting to insert transaction...")
+      // ── Insert transaction ──────────────────────────────────────
       const { data: transaction, error: transactionError } = await supabase
         .from("transactions")
         .insert(transactionData)
@@ -382,27 +439,17 @@ export function POSInterface() {
         .single()
 
       if (transactionError) {
-        console.error("Transaction insert error:", transactionError)
-        console.error("Transaction data that failed:", transactionData)
-        
-        // Check if it's a materialized view error
-        if (transactionError.message && transactionError.message.includes('materialized view')) {
-          toast.error("Database configuration error. Please run the database fix script.")
-          return
+        if (transactionError.message?.includes("materialized view")) {
+          toast.error("Database configuration error. Please contact support.")
+        } else if (transactionError.message?.includes("column")) {
+          toast.error("Database schema error. Please contact support.")
+        } else {
+          toast.error(`Payment failed: ${transactionError.message || "Unknown error"}`)
         }
-        
-        // Check if it's a column error
-        if (transactionError.message && transactionError.message.includes('column')) {
-          toast.error("Database schema error. Please run the database setup script.")
-          return
-        }
-        
-        throw transactionError
+        return
       }
-      
-      console.log("Transaction created successfully:", transaction)
 
-      // Create transaction items
+      // ── Insert transaction items ────────────────────────────────
       const transactionItems = cart.map((item) => ({
         transaction_id: transaction.id,
         product_id: item.product.id,
@@ -417,123 +464,90 @@ export function POSInterface() {
         selling_price: item.product.selling_price || item.product.price,
       }))
 
-      console.log("Creating transaction items:", transactionItems)
-      
-      const { error: itemsError } = await supabase.from("transaction_items").insert(transactionItems)
+      const { error: itemsError } = await supabase
+        .from("transaction_items")
+        .insert(transactionItems)
 
       if (itemsError) {
-        console.error("Transaction items insert error:", itemsError)
-        console.error("Error details:", {
-          message: itemsError.message,
-          code: itemsError.code,
-          details: itemsError.details,
-          hint: itemsError.hint
-        })
-        
-        // Show specific error message to user
-        if (itemsError.code === '23505') {
-          toast.error("Duplicate transaction detected. Please try again.")
-        } else if (itemsError.code === '23503') {
+        if (itemsError.code === "23505") {
+          toast.error("Duplicate transaction. Please try again.")
+        } else if (itemsError.code === "23503") {
           toast.error("Product not found. Please refresh and try again.")
         } else {
-          toast.error(`Transaction failed: ${itemsError.message || 'Unknown error'}`)
+          toast.error(`Items save failed: ${itemsError.message || "Unknown error"}`)
         }
-        
-        throw itemsError
+        return
       }
-      
-            console.log("Transaction items created successfully")
-      
-      // If we get here, the database is working correctly
-      console.log("✅ Database operations are working correctly")
-      
-      // Update stock quantities
-      console.log("Updating stock quantities...")
-      for (const item of cart) {
-        console.log(`Updating stock for ${item.product.name}: ${item.product.stock_quantity} - ${item.quantity}`)
-        const { error: stockError } = await supabase
-          .from("products")
-          .update({
-            stock_quantity: item.product.stock_quantity - item.quantity,
-          })
-          .eq("id", item.product.id)
 
-        if (stockError) {
-          console.error("Stock update error:", stockError)
-          throw stockError
-        }
+      // ── Parallel stock updates ──────────────────────────────────
+      const stockUpdateResults = await Promise.all(
+        cart.map((item) =>
+          supabase
+            .from("products")
+            .update({ stock_quantity: Math.max(0, item.product.stock_quantity - item.quantity) })
+            .eq("id", item.product.id)
+        )
+      )
+      const stockError = stockUpdateResults.find((r) => r.error)?.error
+      if (stockError) {
+        // Non-fatal: transaction already saved, just warn
+        toast.warning("Stock update had an issue. Please check inventory.")
       }
-      
-      console.log("Stock quantities updated successfully")
 
-      // Update customer loyalty points
+      // ── Update customer loyalty & credit ──────────────────────────
       if (selectedCustomer) {
-        console.log("Updating customer loyalty points...")
-        const newLoyaltyPoints = selectedCustomer.loyalty_points + loyaltyPointsEarned - loyaltyPointsRedeemed
+        const newLoyaltyPoints = Math.max(
+          0,
+          selectedCustomer.loyalty_points + loyaltyPointsEarned - loyaltyPointsRedeemed
+        )
         const newTotalSpent = selectedCustomer.total_spent + roundedTotal
+        const newOutstandingCredit = paymentMethod === "credit"
+          ? (selectedCustomer.outstanding_credit || 0) + roundedTotal
+          : (selectedCustomer.outstanding_credit || 0)
 
-        console.log(`Customer loyalty update: ${selectedCustomer.loyalty_points} + ${loyaltyPointsEarned} - ${loyaltyPointsRedeemed} = ${newLoyaltyPoints}`)
-
-        const { error: customerUpdateError } = await supabase
+        await supabase
           .from("customers")
           .update({
             loyalty_points: newLoyaltyPoints,
             total_spent: newTotalSpent,
+            outstanding_credit: newOutstandingCredit,
           })
           .eq("id", selectedCustomer.id)
 
-        if (customerUpdateError) {
-          console.error("Customer update error:", customerUpdateError)
-          throw customerUpdateError
+        // Record credit sale in credit_ledger
+        if (paymentMethod === "credit") {
+          try {
+            await supabase.from("credit_ledger").insert({
+              customer_id: selectedCustomer.id,
+              transaction_id: transaction.id,
+              amount: roundedTotal,
+              entry_type: "credit_sale",
+              notes: `Invoice ${transaction.invoice_number}`,
+              created_by: profile.id,
+            })
+          } catch {
+            // non-fatal — credit_ledger may not exist yet (run SQL migration)
+          }
         }
 
-        // Create loyalty transaction records
+        // Record loyalty transaction (non-fatal if table missing)
         if (loyaltyPointsEarned > 0 || loyaltyPointsRedeemed > 0) {
-          console.log("Creating loyalty transaction record...")
-          const loyaltyTransactionData = {
-            customer_id: selectedCustomer.id,
-            transaction_id: transaction.id,
-            points_earned: loyaltyPointsEarned,
-            points_redeemed: loyaltyPointsRedeemed,
-            discount_amount: loyaltyDiscountAmount,
-            transaction_type: loyaltyPointsEarned > 0 ? 'earned' : 'redeemed'
-          }
-
           try {
-            const { error: loyaltyError } = await supabase.from("loyalty_transactions").insert(loyaltyTransactionData)
-            
-            if (loyaltyError) {
-              console.error("Loyalty transaction error:", loyaltyError)
-              console.error("Loyalty error details:", {
-                message: loyaltyError.message,
-                code: loyaltyError.code,
-                details: loyaltyError.details,
-                hint: loyaltyError.hint
-              })
-              
-              // Show specific loyalty error message
-              if (loyaltyError.code === '23503') {
-                toast.error("Customer or transaction not found. Please try again.")
-              } else if (loyaltyError.message) {
-                toast.error(`Loyalty transaction failed: ${loyaltyError.message}`)
-              } else {
-                toast.error("Loyalty transaction failed. Please try again.")
-              }
-              
-              throw loyaltyError
-            }
-            
-            console.log("Loyalty transaction created successfully")
-          } catch (loyaltyError: any) {
-            console.error("Loyalty transaction failed:", loyaltyError)
-            // Continue with the transaction even if loyalty record fails
-            console.log("Continuing with transaction despite loyalty error...")
-            toast.warning("Transaction completed but loyalty record failed. Please check database setup.")
+            await supabase.from("loyalty_transactions").insert({
+              customer_id: selectedCustomer.id,
+              transaction_id: transaction.id,
+              points_earned: loyaltyPointsEarned,
+              points_redeemed: loyaltyPointsRedeemed,
+              discount_amount: loyaltyDiscountAmount,
+              transaction_type: loyaltyPointsEarned > 0 ? "earned" : "redeemed",
+            })
+          } catch {
+            // Silently ignore — loyalty table may not exist in all DB setups
           }
         }
       }
 
-      // Prepare transaction data for receipt
+      // ── Show receipt ────────────────────────────────────────────
       const receiptTransaction = {
         ...transaction,
         items: cart,
@@ -544,7 +558,7 @@ export function POSInterface() {
         loyalty_discount_amount: loyaltyDiscountAmount,
       }
 
-      // Clear cart and show success
+      // Reset state
       setCart([])
       setCashReceived("")
       setSelectedCustomer(null)
@@ -553,50 +567,37 @@ export function POSInterface() {
       setDiscountAmount(0)
       setDiscountPercentage(0)
 
-      // Show receipt
       setLastTransaction(receiptTransaction)
       setShowReceipt(true)
 
-      // Refresh products to update stock
       fetchProducts()
     } catch (error: any) {
-      console.error("Error processing payment:", error)
-      console.error("Error details:", {
-        message: error?.message,
-        code: error?.code,
-        details: error?.details,
-        hint: error?.hint,
-        stack: error?.stack
-      })
-      // Show specific error message to user
-      if (error?.code === '23505') {
-        toast.error("Duplicate transaction detected. Please try again.")
-      } else if (error?.code === '23503') {
-        toast.error("Product not found. Please refresh and try again.")
-      } else if (error?.message) {
-        toast.error(`Payment failed: ${error.message}`)
-      } else {
-        toast.error("Payment processing failed. Please try again.")
-      }
+      toast.error(
+        error?.message
+          ? `Payment failed: ${error.message}`
+          : "Payment processing failed. Please try again."
+      )
     } finally {
       setLoading(false)
     }
   }, [
-    cart, 
-    paymentMethod, 
-    cashReceived, 
-    roundedTotal, 
-    profile, 
-    selectedCustomer, 
-    subtotal, 
-    gstAmount, 
-    roundingAdjustment, 
-    loyaltyPointsEarned, 
-    loyaltyPointsRedeemed, 
-    loyaltyDiscountAmount, 
-    changeAmount, 
-    getNextBillNumber, 
-    fetchProducts
+    cart,
+    paymentMethod,
+    cashReceived,
+    roundedTotal,
+    profile,
+    selectedCustomer,
+    subtotal,
+    gstAmount,
+    roundingAdjustment,
+    discountAmount,
+    discountPercentage,
+    loyaltyPointsEarned,
+    loyaltyPointsRedeemed,
+    loyaltyDiscountAmount,
+    changeAmount,
+    getNextBillNumber,
+    fetchProducts,
   ])
 
   const clearCart = useCallback(() => {
@@ -654,13 +655,26 @@ export function POSInterface() {
     }
   }
 
+  const getUpiQrUrl = () => {
+    const upiId = storeSettings.upi_id
+    if (!upiId) return null
+    const amount = roundedTotal.toFixed(2)
+    const upiString = `upi://pay?pa=${upiId}&am=${amount}&cu=INR`
+    return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(upiString)}`
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full p-6">
       {/* Products Section */}
       <div className="lg:col-span-2 space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>Products</CardTitle>
+            <div className="flex justify-between items-center mb-2">
+              <CardTitle>Products</CardTitle>
+              <Button onClick={() => setShowAddProductDialog(true)} size="sm" className="gradient-primary text-white border-0 shadow-md">
+                <Plus className="h-4 w-4 mr-1" /> Add Product
+              </Button>
+            </div>
             {/* Search and Filter */}
             <div className="space-y-3">
               {/* Combined Search Input */}
@@ -694,8 +708,15 @@ export function POSInterface() {
                         }
                       }
                     }}
-                    className="pl-10"
+                    className="pl-10 pr-24"
                   />
+                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1.5">
+                    <span className="flex h-2 w-2 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-500 tracking-wider">SCANNER READY</span>
+                  </div>
                   {searchTerm && (
                     <Button
                       variant="outline"
@@ -751,52 +772,118 @@ export function POSInterface() {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {filteredProducts.map((product) => (
-                  <Card
-                    key={product.id}
-                    className="cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => addToCart(product)}
-                  >
-                    <CardContent className="p-3">
-                      <div className="space-y-2">
-                        <div className="space-y-1">
-                          <h3 className="font-medium text-sm line-clamp-2">{product.name}</h3>
-                          <p className="text-xs text-muted-foreground">{product.brand}</p>
-                        </div>
-                        
-                        <div className="flex justify-between items-center mb-1">
-                          <div className="flex flex-col">
-                            <span className="text-lg font-bold text-green-600">{formatCurrency(product.selling_price || product.price)}</span>
-                            {product.mrp && product.mrp > (product.selling_price || product.price) && (
-                              <div className="flex items-center space-x-1">
-                                <span className="text-xs text-gray-500 line-through">MRP: {formatCurrency(product.mrp)}</span>
-                                <Badge variant="outline" className="text-xs text-green-600">
-                                  Save {formatCurrency(product.mrp - (product.selling_price || product.price))}
-                                </Badge>
-                              </div>
-                            )}
-                          </div>
-                          <Badge variant="secondary" className="text-xs">
-                            Stock: {product.stock_quantity}
-                          </Badge>
-                        </div>
-                        
-                        <div className="text-xs text-gray-500 space-y-1">
-                          <div className="flex justify-between">
-                            <span>HSN:</span>
-                            <span className="font-mono">{product.hsn_code}</span>
-                          </div>
-                          {product.price_includes_gst ? (
-                            <span className="text-green-600">✓ Price includes {product.gst_rate}% GST</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {filteredProducts.map((product) => {
+                  const price = product.selling_price || product.price
+                  const cartItem = cart.find(i => i.product.id === product.id)
+                  const hasMrp = product.mrp && product.mrp > price
+                  const discount = hasMrp ? Math.round((1 - price / product.mrp!) * 100) : 0
+                  const isLowStock = product.stock_quantity <= 5
+                  const imageUrl = productImages[product.id]
+                  
+                  return (
+                    <Card
+                      key={product.id}
+                      className={`cursor-pointer transition-all duration-200 hover:shadow-md border-border relative overflow-hidden flex flex-col justify-between ${
+                        cartItem 
+                          ? 'border-blue-500 bg-blue-500/5 dark:bg-blue-950/10 shadow-blue-500/10 shadow-md ring-1 ring-blue-500/30' 
+                          : 'hover:border-blue-500/40 bg-card hover:bg-accent/10'
+                      }`}
+                      onClick={() => addToCart(product)}
+                    >
+                      <CardContent className="p-3 flex gap-3 h-full">
+                        {/* Thumbnail */}
+                        <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0 border border-border bg-muted flex items-center justify-center relative shadow-inner">
+                          {imageUrl ? (
+                            <img src={imageUrl} alt={product.name} className="w-full h-full object-cover" />
                           ) : (
-                            <span className="text-orange-600">+ {product.gst_rate}% GST will be added</span>
+                            <div className={`w-full h-full ${placeholderClass(product.name)} flex items-center justify-center text-white font-bold text-lg`}>
+                              {initials(product.name)}
+                            </div>
+                          )}
+                          {discount > 0 && (
+                            <span className="absolute bottom-0 left-0 right-0 bg-rose-600 text-white text-[8px] font-bold text-center py-0.5 uppercase tracking-wider">
+                              -{discount}%
+                            </span>
                           )}
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+
+                        {/* Product info */}
+                        <div className="flex-1 min-w-0 flex flex-col justify-between">
+                          <div className="space-y-0.5">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider truncate">
+                                {product.brand || 'Generic'}
+                              </span>
+                              {isLowStock && (
+                                <span className="text-[9px] font-extrabold text-amber-500 flex items-center gap-1">
+                                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                                  <span>LOW STOCK ({product.stock_quantity})</span>
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs font-bold truncate leading-snug tracking-tight" title={product.name}>
+                              {product.name}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-1.5 mt-1.5">
+                            <div className="flex items-baseline gap-1">
+                              <span className="text-sm font-black text-emerald-500 font-numeric">
+                                ₹{price.toFixed(0)}
+                              </span>
+                              {hasMrp && (
+                                <span className="text-[10px] text-muted-foreground line-through font-numeric">
+                                  ₹{product.mrp!.toFixed(0)}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Inline Cart Controls */}
+                            {cartItem ? (
+                              cartItem.product.sale_unit === 'kg' ? (
+                                <div className="flex items-center border rounded-lg px-1 bg-background/80 shadow-sm" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="number"
+                                    step="0.001"
+                                    value={cartItem.quantity}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value) || 0
+                                      updateQuantity(product.id, val)
+                                    }}
+                                    className="h-5 w-12 border-0 bg-transparent text-center font-bold text-[10px] focus:outline-none"
+                                  />
+                                  <span className="text-[9px] font-semibold text-muted-foreground pr-0.5">kg</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1 bg-background/80 border border-border rounded-lg p-0.5 shadow-sm" onClick={(e) => e.stopPropagation()}>
+                                  <button 
+                                    className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                                    onClick={() => updateQuantity(product.id, cartItem.quantity - 1)}
+                                  >
+                                    <Minus className="h-2.5 w-2.5" />
+                                  </button>
+                                  <span className="text-xs font-bold w-5 text-center font-numeric">{cartItem.quantity}</span>
+                                  <button 
+                                    className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                                    disabled={cartItem.quantity >= product.stock_quantity}
+                                    onClick={() => updateQuantity(product.id, cartItem.quantity + 1)}
+                                  >
+                                    <Plus className="h-2.5 w-2.5" />
+                                  </button>
+                                </div>
+                              )
+                            ) : (
+                              <span className="text-[9px] text-muted-foreground font-semibold font-numeric">
+                                {product.sale_unit === 'kg' ? 'Price/kg' : `HSN: ${product.hsn_code || '9999'}`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
               </div>
             )}
           </CardContent>
@@ -854,15 +941,33 @@ export function POSInterface() {
                         <p className="text-xs text-gray-400">Qty: {item.quantity} × {formatCurrency(item.product.selling_price || item.product.price)}</p>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Button size="sm" variant="outline" onClick={() => updateQuantity(item.product.id, item.quantity - 1)}>
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <span className="text-sm font-medium w-8 text-center">{item.quantity}</span>
-                        <Button size="sm" variant="outline" onClick={() => updateQuantity(item.product.id, item.quantity + 1)} disabled={item.quantity >= item.product.stock_quantity}>
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => removeFromCart(item.product.id)}>
-                          <Trash2 className="h-3 w-3" />
+                        {item.product.sale_unit === 'kg' ? (
+                          <div className="flex items-center border rounded-md px-1.5 py-0.5 bg-background">
+                            <input
+                              type="number"
+                              step="0.001"
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0
+                                updateQuantity(item.product.id, val)
+                              }}
+                              className="h-6 w-16 p-0 border-0 focus:outline-none focus:ring-0 text-center font-bold text-xs"
+                            />
+                            <span className="text-[10px] font-bold text-muted-foreground pl-1">kg</span>
+                          </div>
+                        ) : (
+                          <>
+                            <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => updateQuantity(item.product.id, item.quantity - 1)}>
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <span className="text-sm font-medium w-8 text-center">{item.quantity}</span>
+                            <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => updateQuantity(item.product.id, item.quantity + 1)} disabled={item.quantity >= item.product.stock_quantity}>
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </>
+                        )}
+                        <Button size="sm" variant="destructive" className="h-7 w-7 p-0" onClick={() => removeFromCart(item.product.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </div>
@@ -912,7 +1017,7 @@ export function POSInterface() {
                 </div>
               )}
               {selectedCustomer && loyaltyPointsEarned > 0 && (
-                <div className="flex justify-between text-sm text-purple-600">
+                <div className="flex justify-between text-sm text-blue-600">
                   <span>Loyalty Points:</span>
                   <span>+{loyaltyPointsEarned} pts</span>
                 </div>
@@ -947,7 +1052,7 @@ export function POSInterface() {
             {/* Payment Method */}
             <div className="space-y-3">
               <p className="text-sm font-medium">Payment Method:</p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <Button
                   variant={paymentMethod === "cash" ? "default" : "outline"}
                   size="sm"
@@ -972,7 +1077,43 @@ export function POSInterface() {
                   <Smartphone className="h-4 w-4 mr-1" />
                   UPI
                 </Button>
+                <Button
+                  variant={paymentMethod === "credit" ? "default" : "outline"}
+                  size="sm"
+                  disabled={!selectedCustomer}
+                  onClick={() => setPaymentMethod("credit")}
+                  className={
+                    paymentMethod === "credit"
+                      ? "bg-orange-600 hover:bg-orange-700 border-orange-600"
+                      : !selectedCustomer
+                      ? "opacity-50 cursor-not-allowed"
+                      : "border-orange-400 text-orange-700 hover:bg-orange-50"
+                  }
+                  title={!selectedCustomer ? "Select a customer to enable credit payment" : ""}
+                >
+                  <AlertTriangle className="h-4 w-4 mr-1" />
+                  Credit
+                </Button>
               </div>
+
+              {/* Credit warning banner */}
+              {paymentMethod === "credit" && selectedCustomer && (
+                <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 rounded-lg p-2 text-xs text-orange-700 flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    <strong>{selectedCustomer.name}</strong> will owe{" "}
+                    <strong>₹{roundedTotal.toFixed(2)}</strong> as credit. Current outstanding:{" "}
+                    ₹{((selectedCustomer as any).outstanding_credit || 0).toFixed(2)}
+                  </span>
+                </div>
+              )}
+
+              {!selectedCustomer && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3 text-orange-400" />
+                  Select a customer to enable Credit payment
+                </p>
+              )}
 
               {paymentMethod === "cash" && (
                 <div className="space-y-2">
@@ -993,17 +1134,63 @@ export function POSInterface() {
               )}
             </div>
 
+            {(() => {
+              const isUpi = paymentMethod === "upi"
+              const upiId = storeSettings.upi_id
+              const showDynamicQr = isUpi && !!upiId
+              const uploadedQr = getStoreQrImage()
+              const effectiveQr = uploadedQr || null
+              const qrImageToDisplay = showDynamicQr ? getUpiQrUrl() : effectiveQr
+
+              if (!qrImageToDisplay) return null
+
+              return (
+                <div className="bg-slate-50 dark:bg-slate-900/40 border border-border rounded-xl p-4 text-center space-y-2 shadow-sm animate-fade-in my-3">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    {showDynamicQr ? "Scan to Pay via UPI" : "Scan QR Code"}
+                  </p>
+                  <div className="bg-white p-2 rounded-lg inline-block border border-gray-100 shadow-inner">
+                    <img
+                      src={qrImageToDisplay}
+                      alt="Checkout QR"
+                      className="w-32 h-32 mx-auto object-contain"
+                    />
+                  </div>
+                  {showDynamicQr && upiId && (
+                    <p className="text-xs font-semibold text-foreground font-mono">
+                      {upiId}
+                    </p>
+                  )}
+                  {showDynamicQr && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Amount: <span className="font-bold text-emerald-500">₹{roundedTotal.toFixed(2)}</span>
+                    </p>
+                  )}
+                </div>
+              )
+            })()}
+
             <Button
-              className="w-full bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-lg py-6"
+              className={`w-full text-lg py-6 ${
+                paymentMethod === "credit"
+                  ? "bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700"
+                  : "bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+              }`}
               onClick={processPayment}
               disabled={
                 cart.length === 0 ||
                 loading ||
-                (paymentMethod === "cash" && Number.parseFloat(cashReceived || "0") < roundedTotal)
+                (paymentMethod === "cash" && Number.parseFloat(cashReceived || "0") < roundedTotal) ||
+                (paymentMethod === "credit" && !selectedCustomer)
               }
             >
               {loading ? (
                 "Processing..."
+              ) : paymentMethod === "credit" ? (
+                <>
+                  <AlertTriangle className="h-5 w-5 mr-2" />
+                  Bill on Credit — {formatCurrency(roundedTotal)}
+                </>
               ) : (
                 <>
                   <Receipt className="h-5 w-5 mr-2" />
@@ -1019,6 +1206,189 @@ export function POSInterface() {
       {showReceipt && lastTransaction && (
         <ReceiptPreview transaction={lastTransaction} onClose={() => setShowReceipt(false)} />
       )}
+
+      {/* Add Product Dialog */}
+      <Dialog open={showAddProductDialog} onOpenChange={setShowAddProductDialog}>
+        <DialogContent className="max-w-md rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="pb-2 border-b border-border">
+            <div className="flex items-center gap-2">
+              <Plus className="h-5 w-5 text-blue-500" />
+              <DialogTitle className="text-lg font-bold">Add New Product</DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Add a new product to inventory. It will be instantly available for billing.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleAddNewProductSubmit} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="pos-new-name" className="text-xs font-semibold">Product Name *</Label>
+              <Input
+                id="pos-new-name"
+                value={newProductForm.name}
+                onChange={e => setNewProductForm({ ...newProductForm, name: e.target.value })}
+                placeholder="e.g. Tata Tea Gold 500g"
+                required
+                className="h-9 rounded-xl text-sm"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-mrp" className="text-xs font-semibold">MRP / Price (₹) *</Label>
+                <Input
+                  id="pos-new-mrp"
+                  type="number"
+                  step="0.01"
+                  value={newProductForm.price}
+                  onChange={e => setNewProductForm({ ...newProductForm, price: e.target.value })}
+                  placeholder="0.00"
+                  required
+                  className="h-9 rounded-xl text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-qty" className="text-xs font-semibold">Initial Stock Qty *</Label>
+                <Input
+                  id="pos-new-qty"
+                  type="number"
+                  value={newProductForm.stock_quantity}
+                  onChange={e => setNewProductForm({ ...newProductForm, stock_quantity: e.target.value })}
+                  placeholder="0"
+                  required
+                  className="h-9 rounded-xl text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-cost" className="text-xs font-semibold">Cost Price (₹)</Label>
+                <Input
+                  id="pos-new-cost"
+                  type="number"
+                  step="0.01"
+                  value={newProductForm.cost_price}
+                  onChange={e => setNewProductForm({ ...newProductForm, cost_price: e.target.value })}
+                  placeholder="0.00"
+                  className="h-9 rounded-xl text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-selling" className="text-xs font-semibold">Selling Price (₹)</Label>
+                <Input
+                  id="pos-new-selling"
+                  type="number"
+                  step="0.01"
+                  value={newProductForm.selling_price}
+                  onChange={e => setNewProductForm({ ...newProductForm, selling_price: e.target.value })}
+                  placeholder="0.00"
+                  className="h-9 rounded-xl text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-brand" className="text-xs font-semibold">Brand</Label>
+                <Input
+                  id="pos-new-brand"
+                  value={newProductForm.brand}
+                  onChange={e => setNewProductForm({ ...newProductForm, brand: e.target.value })}
+                  placeholder="Generic"
+                  className="h-9 rounded-xl text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-hsn" className="text-xs font-semibold">HSN Code</Label>
+                <Input
+                  id="pos-new-hsn"
+                  value={newProductForm.hsn_code}
+                  onChange={e => setNewProductForm({ ...newProductForm, hsn_code: e.target.value })}
+                  placeholder="999999"
+                  className="h-9 rounded-xl text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-unit" className="text-xs font-semibold">Sale Unit *</Label>
+                <Select
+                  value={newProductForm.sale_unit}
+                  onValueChange={val => setNewProductForm({ ...newProductForm, sale_unit: val })}
+                >
+                  <SelectTrigger id="pos-new-unit" className="h-9 rounded-xl text-sm">
+                    <SelectValue placeholder="pcs" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pcs">Pieces (pcs)</SelectItem>
+                    <SelectItem value="kg">Kilograms (kg)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-gst" className="text-xs font-semibold">GST Rate (%) *</Label>
+                <Input
+                  id="pos-new-gst"
+                  type="number"
+                  step="0.01"
+                  value={newProductForm.gst_rate}
+                  onChange={e => setNewProductForm({ ...newProductForm, gst_rate: e.target.value })}
+                  required
+                  className="h-9 rounded-xl text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pos-new-min-stock" className="text-xs font-semibold">Min Stock Level *</Label>
+                <Input
+                  id="pos-new-min-stock"
+                  type="number"
+                  value={newProductForm.min_stock_level}
+                  onChange={e => setNewProductForm({ ...newProductForm, min_stock_level: e.target.value })}
+                  required
+                  className="h-9 rounded-xl text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="pos-new-barcode" className="text-xs font-semibold">Barcode</Label>
+              <Input
+                id="pos-new-barcode"
+                value={newProductForm.barcode}
+                onChange={e => setNewProductForm({ ...newProductForm, barcode: e.target.value })}
+                placeholder="Scan or enter barcode (optional)"
+                className="h-9 rounded-xl text-sm"
+              />
+            </div>
+
+            <label className="flex items-center gap-2.5 p-3 rounded-xl border border-border cursor-pointer hover:bg-accent/40 transition-colors">
+              <input 
+                type="checkbox"
+                checked={newProductForm.price_includes_gst}
+                onChange={e => setNewProductForm({ ...newProductForm, price_includes_gst: e.target.checked })}
+                className="w-4 h-4 rounded accent-blue-600" 
+              />
+              <div className="flex-1">
+                <p className="text-xs font-semibold">Price includes GST</p>
+              </div>
+              {newProductForm.price_includes_gst && (
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+              )}
+            </label>
+
+            <div className="flex gap-2 pt-2 border-t border-border">
+              <Button type="submit" className="flex-1 h-10 rounded-xl gradient-primary border-0 font-semibold shadow-md text-white">
+                Create Product
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setShowAddProductDialog(false)} className="flex-1 h-10 rounded-xl font-semibold">
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
