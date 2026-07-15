@@ -29,6 +29,20 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+// Guards against a hung Supabase request (paused project, dead network, bad
+// token refresh) leaving `loading` stuck at true forever and freezing the
+// whole app behind the splash screen.
+function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ])
+}
+
+const AUTH_TIMEOUT_MS = 8000
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -38,10 +52,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Fetch permissions for a given role
   const fetchPermissions = useCallback(async (role: UserRole) => {
     try {
-      const { data, error } = await supabase
-        .from("roles_permissions")
-        .select("*")
-        .eq("role_name", role)
+      const { data, error } = await withTimeout(
+        supabase.from("roles_permissions").select("*").eq("role_name", role),
+        AUTH_TIMEOUT_MS,
+        "fetchPermissions"
+      )
 
       if (!error && data) {
         const map: PermissionMap = {}
@@ -57,11 +72,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id,email,full_name,role,status,last_login_at,created_by")
-        .eq("id", userId)
-        .single()
+      const { data, error } = await withTimeout(
+        supabase
+          .from("profiles")
+          .select("id,email,full_name,role,status,last_login_at,created_by")
+          .eq("id", userId)
+          .single(),
+        AUTH_TIMEOUT_MS,
+        "fetchProfile"
+      )
 
       if (error && error.code === "PGRST116") {
         // Profile doesn't exist — create one
@@ -106,7 +125,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function initAuth() {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession()
+        const { data: { session }, error } = await withTimeout(
+          supabase.auth.getSession(),
+          AUTH_TIMEOUT_MS,
+          "getSession"
+        )
         if (error) throw error
         if (active) {
           setUser(session?.user ?? null)

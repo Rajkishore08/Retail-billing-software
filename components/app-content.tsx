@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { LoginForm } from "@/components/login-form"
 import { Sidebar } from "@/components/layout/sidebar"
@@ -46,6 +46,19 @@ export function AppContent({ children }: { children: React.ReactNode }) {
 
 function AppContentInner({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
+  const [stuck, setStuck] = useState(false)
+
+  // Belt-and-suspenders: auth-context has its own request timeouts, but if
+  // loading is somehow still stuck after 12s (e.g. an unrelated hang), give
+  // the user a way out instead of a spinner that never resolves.
+  useEffect(() => {
+    if (!loading) {
+      setStuck(false)
+      return
+    }
+    const timer = setTimeout(() => setStuck(true), 12000)
+    return () => clearTimeout(timer)
+  }, [loading])
 
   if (loading) {
     return (
@@ -80,7 +93,9 @@ function AppContentInner({ children }: { children: React.ReactNode }) {
             <p className="text-white font-bold text-lg tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
               Techno Bills
             </p>
-            <p className="text-slate-500 text-sm mt-1.5 font-medium">Initializing POS System…</p>
+            <p className="text-slate-500 text-sm mt-1.5 font-medium">
+              {stuck ? "Taking longer than usual…" : "Initializing POS System…"}
+            </p>
             {/* Progress dots */}
             <div className="flex justify-center gap-1.5 mt-4">
               {[0, 1, 2].map(i => (
@@ -91,6 +106,19 @@ function AppContentInner({ children }: { children: React.ReactNode }) {
                 />
               ))}
             </div>
+            {stuck && (
+              <div className="mt-5 space-y-2">
+                <p className="text-slate-500 text-xs">
+                  This is usually a network or connection issue.
+                </p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-white gradient-primary hover:opacity-90 transition-opacity"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
