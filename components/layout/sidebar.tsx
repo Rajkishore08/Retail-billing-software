@@ -80,14 +80,8 @@ export function Sidebar() {
       <div className="relative z-10 px-5 pt-6 pb-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
         <div className="flex items-center gap-3.5">
           <div className="relative animate-float shrink-0">
-            <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-xl overflow-hidden border border-white/10" style={{ background: logoUrl ? "rgba(255,255,255,0.05)" : "none" }}>
-              {logoUrl ? (
-                <img src={logoUrl} alt="Store Logo" className="w-full h-full object-contain p-1" />
-              ) : (
-                <div className="w-full h-full gradient-primary flex items-center justify-center glow-blue">
-                  <ShoppingBag className="h-5 w-5 text-white" />
-                </div>
-              )}
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-xl overflow-hidden border border-white/10" style={{ background: "rgba(255,255,255,0.05)" }}>
+              <img src={logoUrl || "/logo.png"} alt="Store Logo" className="w-full h-full object-contain p-1" />
             </div>
             <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-[#060612] animate-pulse" />
           </div>

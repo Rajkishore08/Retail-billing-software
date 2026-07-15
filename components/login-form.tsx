@@ -69,8 +69,8 @@ export function LoginForm() {
 
         {/* Logo */}
         <div className="flex items-center gap-4 z-10 animate-fade-in-down">
-          <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center shadow-2xl glow-blue animate-float">
-            <ShoppingBag className="h-6 w-6 text-white" />
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl glow-blue animate-float overflow-hidden bg-white/5 border border-white/10">
+            <img src="/logo.png" alt="Techno Bills Logo" className="w-full h-full object-contain p-1" />
           </div>
           <div>
             <h1 className="text-white font-bold text-xl leading-tight tracking-tight">Techno Bills</h1>
@@ -149,8 +149,8 @@ export function LoginForm() {
         <div className="w-full max-w-[380px] animate-fade-in-up relative z-10">
           {/* Mobile logo */}
           <div className="flex items-center gap-3 mb-8 lg:hidden">
-            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center glow-blue">
-              <ShoppingBag className="h-5 w-5 text-white" />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center glow-blue overflow-hidden bg-white/5 border border-white/10">
+              <img src="/logo.png" alt="Techno Bills Logo" className="w-full h-full object-contain p-1" />
             </div>
             <div>
               <h1 className="font-bold text-base leading-tight">Techno Bills</h1>

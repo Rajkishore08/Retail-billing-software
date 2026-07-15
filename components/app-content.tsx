@@ -84,8 +84,8 @@ function AppContentInner({ children }: { children: React.ReactNode }) {
             {/* Middle ring */}
             <div className="absolute inset-2 rounded-full border-2 border-transparent border-b-emerald-400 border-l-emerald-500/50 animate-spin" style={{ animationDirection: "reverse", animationDuration: "1.4s" }} />
             {/* Inner brand icon */}
-            <div className="absolute inset-4 rounded-full gradient-primary flex items-center justify-center shadow-xl glow-blue">
-              <ShoppingBag className="h-5 w-5 text-white" />
+            <div className="absolute inset-4 rounded-full flex items-center justify-center shadow-xl glow-blue overflow-hidden bg-white/5 border border-white/10">
+              <img src="/logo.png" alt="Techno Bills Logo" className="w-full h-full object-contain p-1" />
             </div>
           </div>
 

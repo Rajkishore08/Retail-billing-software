@@ -34,7 +34,7 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
 
   const uploadedLogo = getStoreLogo()
   const uploadedQr = getStoreQrImage()
-  const effectiveLogo = uploadedLogo || storeSettings.store_logo || ""
+  const effectiveLogo = uploadedLogo || storeSettings.store_logo || "/logo.png"
   const effectiveQr = uploadedQr || null
 
   const calculateTotalSavings = () => {
