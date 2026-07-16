@@ -54,9 +54,9 @@ function ProductImage({ product, images, size = "md" }: {
 }) {
   const url = images[product.id]
   const [err, setErr] = useState(false)
-  const dim = size === "sm" ? "w-10 h-10 text-sm"
-            : size === "lg" ? "w-full h-48 text-3xl"
-            : "w-full h-40 text-2xl"
+  const dim = size === "sm" ? "w-8 h-8 text-xs"
+            : size === "lg" ? "w-full h-32 text-2xl"
+            : "w-full h-28 text-xl"
 
   if (url && !err) {
     return (
@@ -465,7 +465,7 @@ export default function ProductsPage() {
         </div>
       ) : viewMode === "grid" ? (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
             {paginatedProducts.map((product, idx) => {
               const isLow  = product.stock_quantity <= product.min_stock_level
               const price  = product.selling_price || product.price
@@ -475,7 +475,7 @@ export default function ProductsPage() {
               return (
                 <Card
                   key={product.id}
-                  className={`border border-border rounded-2xl overflow-hidden card-hover animate-fade-in-up stagger-${Math.min(idx+1,4)} group`}
+                  className={`border border-border rounded-xl overflow-hidden card-hover animate-fade-in-up stagger-${Math.min(idx+1,4)} group`}
                   style={{ animationDelay: `${(idx % 8) * 0.05}s`, animationFillMode: "forwards" }}
                 >
                   {/* Image area */}
@@ -485,75 +485,71 @@ export default function ProductsPage() {
                     <div className="img-card-overlay" />
 
                     {/* Badges on top of image */}
-                    <div className="absolute top-2.5 left-2.5 right-2.5 flex justify-between items-start">
+                    <div className="absolute top-2 left-2 right-2 flex justify-between items-start">
                       {discount > 0 ? (
-                        <span className="bg-rose-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg">
+                        <span className="bg-rose-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
                           -{discount}%
                         </span>
                       ) : <span />}
                       <span className={[
-                        "text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg backdrop-blur-sm flex items-center gap-1",
+                        "text-[9px] font-bold px-1.5 py-0.5 rounded shadow backdrop-blur-sm flex items-center gap-1",
                         isLow ? "bg-amber-500/90 text-white" : "bg-emerald-500/90 text-white",
                       ].join(" ")}>
-                        {isLow ? (
-                          <><AlertTriangle className="h-3 w-3 shrink-0" /> Low</>
-                        ) : (
-                          <><CheckCircle2 className="h-3 w-3 shrink-0" /> In Stock</>
-                        )}
+                        {isLow ? "Low" : "In Stock"}
                       </span>
                     </div>
 
                     {/* Price shown at bottom of image */}
-                    <div className="absolute bottom-0 left-0 right-0 p-3 flex items-end justify-between">
-                      <span className="text-xl font-bold text-white font-numeric drop-shadow-lg">
+                    <div className="absolute bottom-0 left-0 right-0 p-2 flex items-end justify-between">
+                      <span className="text-base font-bold text-white font-numeric drop-shadow-lg">
                         {formatCurrency(price)}
                       </span>
                       {hasMrp && (
-                        <span className="text-xs text-white/60 line-through drop-shadow">
-                          MRP {formatCurrency(product.mrp!)}
+                        <span className="text-[10px] text-white/60 line-through drop-shadow">
+                          {formatCurrency(product.mrp!)}
                         </span>
                       )}
                     </div>
                   </div>
 
                   {/* Content */}
-                  <CardContent className="p-4 space-y-3">
+                  <CardContent className="p-3 space-y-2.5">
                     <div>
-                      <h3 className="font-bold text-sm leading-tight line-clamp-1">{product.name}</h3>
+                      <h3 className="font-bold text-xs leading-tight line-clamp-1 text-card-foreground" title={product.name}>{product.name}</h3>
                       <div className="flex items-center justify-between mt-0.5">
-                        <p className="text-xs text-muted-foreground">{product.brand}</p>
-                        <span className={`text-xs font-bold ${isLow ? "text-amber-500" : "text-slate-400"}`}>
+                        <p className="text-[10px] text-muted-foreground truncate max-w-[70px]">{product.brand}</p>
+                        <span className={`text-[10px] font-bold ${isLow ? "text-amber-500" : "text-slate-400"}`}>
                           Qty: {product.stock_quantity}
                         </span>
                       </div>
                     </div>
 
                     {/* Info pills */}
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/12 text-blue-400 border border-blue-500/20">
-                        <Tag className="h-2.5 w-2.5" />GST {product.gst_rate}%
+                    <div className="flex flex-wrap gap-1">
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/12 text-blue-400 border border-blue-500/20">
+                        GST {product.gst_rate}%
                       </span>
                       {product.barcode && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/12 text-sky-400 border border-sky-500/20">
-                          <Barcode className="h-2.5 w-2.5" />{product.barcode.slice(-6)}
+                        <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded bg-sky-500/12 text-sky-400 border border-sky-500/20">
+                          {product.barcode.slice(-6)}
                         </span>
                       )}
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-400 border border-slate-500/20">
-                        <Layers className="h-2.5 w-2.5" />{product.hsn_code}
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                        {product.hsn_code}
                       </span>
                     </div>
 
-                    <div className="divider" />
+                    <div className="border-t border-border/40 my-1" />
 
                     {/* Actions */}
-                    <div className="flex gap-2">
+                    <div className="flex gap-1.5">
                       <Button variant="outline" size="sm" onClick={() => openEdit(product)}
-                        className="flex-1 h-9 rounded-lg text-xs font-semibold hover:border-blue-500/50 hover:text-blue-400 hover:bg-blue-500/5 transition-colors">
-                        <Edit className="h-3 w-3 mr-1.5" /> Edit
+                        className="flex-1 h-8 rounded-lg text-[10px] font-semibold hover:border-blue-500/50 hover:text-blue-400 hover:bg-blue-500/5 transition-colors px-1">
+                        <Edit className="h-3 w-3 mr-1" /> Edit
                       </Button>
                       <Button variant="outline" size="sm" onClick={() => handleDelete(product.id)}
-                        className="flex-1 h-9 rounded-lg text-xs font-semibold hover:border-rose-500/50 hover:text-rose-400 hover:bg-rose-500/5 transition-colors">
-                        <Trash2 className="h-3 w-3 mr-1.5" /> Delete
+                        className="flex-1 h-8 rounded-lg text-[10px] font-semibold hover:border-rose-500/50 hover:text-rose-400 hover:bg-rose-500/5 transition-colors px-1">
+                        <Trash2 className="h-3 w-3 mr-1" /> Del
                       </Button>
                     </div>
                   </CardContent>
