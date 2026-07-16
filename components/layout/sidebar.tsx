@@ -78,20 +78,20 @@ export function Sidebar() {
 
       {/* ── Logo / Brand ─────────────────────────────────── */}
       <div className="relative z-10 px-5 pt-6 pb-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-        <div className="flex items-center gap-3.5">
+        <div className="flex items-center gap-4">
           <div className="relative animate-float shrink-0">
-            <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-xl overflow-hidden border border-white/10" style={{ background: "rgba(255,255,255,0.05)" }}>
-              <img src={logoUrl || "/logo.png"} alt="Store Logo" className="w-full h-full object-contain p-1" />
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-xl overflow-hidden border border-white/10" style={{ background: "rgba(255,255,255,0.05)" }}>
+              <img src={logoUrl || "/logo.png"} alt="Store Logo" className="w-full h-full object-contain" />
             </div>
             <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-[#060612] animate-pulse" />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="font-bold text-[15px] leading-tight text-gradient-primary tracking-tight">
+            <h1 className="font-bold text-lg leading-tight text-gradient-primary tracking-tight">
               Techno Bills
             </h1>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <Zap className="h-3 w-3 text-amber-400 shrink-0" />
-              <p className="text-[11px] text-slate-500 font-medium">POS System v2.0</p>
+            <div className="flex items-center gap-1.5 mt-1">
+              <Zap className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+              <p className="text-xs text-slate-400 font-semibold">POS v2.0</p>
             </div>
           </div>
         </div>

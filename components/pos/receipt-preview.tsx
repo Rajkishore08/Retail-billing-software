@@ -115,7 +115,7 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
 
   // ── UPI QR Code URL ─────────────────────────────────────────────
   const getUpiQrUrl = () => {
-    const upiId = storeSettings.upi_id
+    const upiId = transaction.upi_id || storeSettings.upi_id
     if (!upiId) return null
     const amount = transaction.total_amount.toFixed(2)
     const upiString = `upi://pay?pa=${upiId}&am=${amount}&cu=INR`
@@ -145,13 +145,14 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
 
   const upiQrUrl = getUpiQrUrl()
   const isUpi = transaction.payment_method === "upi"
-  const showDynamicQr = isUpi && !!storeSettings.upi_id
+  const effectiveUpiId = transaction.upi_id || storeSettings.upi_id
+  const showDynamicQr = isUpi && !!effectiveUpiId
   const qrImageToDisplay = showDynamicQr ? upiQrUrl : effectiveQr
   const upiQrHtml = qrImageToDisplay
     ? `<div style="text-align:center;margin:10px 0;">
         <div style="font-size:11px;font-weight:bold;margin-bottom:4px;">${showDynamicQr ? "Scan to Pay via UPI" : "Scan QR Code"}</div>
         <img src="${qrImageToDisplay}" alt="QR Code" style="width:100px;height:100px;" />
-        ${showDynamicQr && storeSettings.upi_id ? `<div style="font-size:10px;color:#666;margin-top:2px;">${storeSettings.upi_id}</div>` : ""}
+        ${showDynamicQr && effectiveUpiId ? `<div style="font-size:10px;color:#666;margin-top:2px;">${effectiveUpiId}</div>` : ""}
        </div>`
     : ""
 
@@ -208,7 +209,7 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
     const savings = calculateTotalSavings()
     const pdfLogoHtml = effectiveLogo ? `<img src="${effectiveLogo}" class="logo" alt="Logo" onerror="this.style.display='none'" /><br/>` : ""
     const pdfQrHtml = qrImageToDisplay
-      ? `<div class="qr-section"><div style="font-size:13px;font-weight:bold;margin-bottom:8px;"><svg style="display:inline-block;width:1.2em;height:1.2em;vertical-align:-0.2em;margin-right:0.2em;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>${showDynamicQr ? "Pay via UPI" : "Scan QR Code"}</div><img src="${qrImageToDisplay}" width="110" height="110" alt="QR Code"/>${showDynamicQr && storeSettings.upi_id ? `<div style="font-size:12px;color:#555;margin-top:4px;">${storeSettings.upi_id}</div>` : ""}</div>`
+      ? `<div class="qr-section"><div style="font-size:13px;font-weight:bold;margin-bottom:8px;"><svg style="display:inline-block;width:1.2em;height:1.2em;vertical-align:-0.2em;margin-right:0.2em;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>${showDynamicQr ? "Pay via UPI" : "Scan QR Code"}</div><img src="${qrImageToDisplay}" width="110" height="110" alt="QR Code"/>${showDynamicQr && effectiveUpiId ? `<div style="font-size:12px;color:#555;margin-top:4px;">${effectiveUpiId}</div>` : ""}</div>`
       : ""
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice - ${transaction.invoice_number}</title>
       <style>
@@ -373,7 +374,7 @@ export function ReceiptPreview({ transaction, onClose }: ReceiptProps) {
               <div className="text-center mt-2 border border-dashed border-gray-300 rounded p-2">
                 <div className="text-xs font-bold mb-1">{showDynamicQr ? "Scan to Pay via UPI" : "Scan QR Code"}</div>
                 <img src={qrImageToDisplay} alt="QR Code" className="w-20 h-20 mx-auto" />
-                {showDynamicQr && storeSettings.upi_id && <div className="text-xs text-gray-500 mt-1">{storeSettings.upi_id}</div>}
+                {showDynamicQr && effectiveUpiId && <div className="text-xs text-gray-500 mt-1">{effectiveUpiId}</div>}
               </div>
             ) : null}
 

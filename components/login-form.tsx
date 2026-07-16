@@ -68,15 +68,15 @@ export function LoginForm() {
         />
 
         {/* Logo */}
-        <div className="flex items-center gap-4 z-10 animate-fade-in-down">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl glow-blue animate-float overflow-hidden bg-white/5 border border-white/10">
-            <img src="/logo.png" alt="Techno Bills Logo" className="w-full h-full object-contain p-1" />
+        <div className="flex items-center gap-5 z-10 animate-fade-in-down">
+          <div className="w-20 h-20 rounded-2xl flex items-center justify-center shadow-2xl glow-blue animate-float overflow-hidden bg-white/5 border border-white/10">
+            <img src="/logo.png" alt="Techno Bills Logo" className="w-full h-full object-contain" />
           </div>
           <div>
-            <h1 className="text-white font-bold text-xl leading-tight tracking-tight">Techno Bills</h1>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
-              <p className="text-blue-400 text-xs font-semibold">POS System v2.0</p>
+            <h1 className="text-white font-bold text-3xl leading-tight tracking-tight">Techno Bills</h1>
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <Star className="h-4 w-4 text-amber-400 fill-amber-400" />
+              <p className="text-blue-400 text-sm font-semibold">POS System v2.0</p>
             </div>
           </div>
         </div>
@@ -148,12 +148,12 @@ export function LoginForm() {
 
         <div className="w-full max-w-[380px] animate-fade-in-up relative z-10">
           {/* Mobile logo */}
-          <div className="flex items-center gap-3 mb-8 lg:hidden">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center glow-blue overflow-hidden bg-white/5 border border-white/10">
-              <img src="/logo.png" alt="Techno Bills Logo" className="w-full h-full object-contain p-1" />
+          <div className="flex items-center gap-3.5 mb-8 lg:hidden">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center glow-blue overflow-hidden bg-white/5 border border-white/10">
+              <img src="/logo.png" alt="Techno Bills Logo" className="w-full h-full object-contain" />
             </div>
             <div>
-              <h1 className="font-bold text-base leading-tight">Techno Bills</h1>
+              <h1 className="font-bold text-lg leading-tight">Techno Bills</h1>
               <p className="text-muted-foreground text-xs">POS System</p>
             </div>
           </div>

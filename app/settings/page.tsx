@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { supabase } from "@/lib/supabase-client"
 import { useAuth } from "@/contexts/auth-context"
-import { User, Store, Settings as SettingsIcon, Image as ImageIcon, CheckCircle2, Building2, MapPin, Phone, Hash, Percent, Receipt, ScanLine, Printer, MonitorSmartphone, CalendarDays, X, UserCog, Shield, ArrowRight } from "lucide-react"
+import { User, Store, Settings as SettingsIcon, Image as ImageIcon, CheckCircle2, Building2, MapPin, Phone, Hash, Percent, Receipt, ScanLine, Printer, MonitorSmartphone, CalendarDays, X, UserCog, Shield, ArrowRight, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { getStoreLogo, setStoreLogo, removeStoreLogo, getStoreQrImage, setStoreQrImage, removeStoreQrImage } from "@/lib/store-image-store"
 import { RouteGuard } from "@/components/auth/route-guard"
@@ -24,6 +24,7 @@ export default function SettingsPage() {
   const [logoPreviewError, setLogoPreviewError] = useState(false)
   const [logoImage, setLogoImage] = useState<string>("")
   const [qrImage, setQrImage] = useState<string>("")
+  const [upiList, setUpiList] = useState<{ id: string; label: string; upi: string; isDefault: boolean }[]>([])
 
   const logoFileRef = useRef<HTMLInputElement>(null)
   const qrFileRef = useRef<HTMLInputElement>(null)
@@ -52,6 +53,22 @@ export default function SettingsPage() {
       })
       if (settings.store_logo) try { localStorage.setItem("store_logo", settings.store_logo) } catch {}
       if (settings.store_name) try { localStorage.setItem("store_name", settings.store_name) } catch {}
+
+      // Load multiple UPI IDs
+      let parsedUpis: any[] = []
+      if (settings.upi_ids) {
+        try {
+          parsedUpis = JSON.parse(settings.upi_ids)
+        } catch {}
+      }
+      if (!Array.isArray(parsedUpis) || parsedUpis.length === 0) {
+        if (settings.upi_id) {
+          parsedUpis = [{ id: "legacy-1", label: "Default Counter", upi: settings.upi_id, isDefault: true }]
+        } else {
+          parsedUpis = [{ id: "counter-1", label: "Main Counter", upi: "", isDefault: true }]
+        }
+      }
+      setUpiList(parsedUpis)
     }
   }
 
@@ -87,12 +104,31 @@ export default function SettingsPage() {
   const updateSettings = async () => {
     setLoading(true)
     try {
-      const entries = Object.entries(storeSettings).map(([key, value]) => ({ key, value }))
-      for (const setting of entries) await supabase.from("settings").upsert(setting, { onConflict: "key" })
+      const activeDefault = upiList.find(u => u.isDefault) || upiList[0]
+      const defaultUpiVal = activeDefault ? activeDefault.upi : ""
+      const cleanedUpiList = upiList.filter(u => u.label.trim() && u.upi.trim())
+
+      const payloadSettings = {
+        ...storeSettings,
+        upi_id: defaultUpiVal,
+        upi_ids: JSON.stringify(cleanedUpiList)
+      }
+
+      const entries = Object.entries(payloadSettings).map(([key, value]) => ({ key, value }))
+      for (const setting of entries) {
+        const { error } = await supabase.from("settings").upsert(setting, { onConflict: "key" })
+        if (error) throw error
+      }
+
       if (logoImage) try { localStorage.setItem("store_logo", logoImage) } catch {}
       try { localStorage.setItem("store_name", storeSettings.store_name) } catch {}
       toast.success("Settings saved successfully!")
-    } catch { toast.error("Error saving settings") } finally { setLoading(false) }
+    } catch (err: any) {
+      console.error("Error saving settings:", err)
+      toast.error(err.message ? `Error saving settings: ${err.message}` : "Error saving settings")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const updateProfile = async () => {
@@ -245,13 +281,97 @@ export default function SettingsPage() {
               <p className="text-[10px] text-muted-foreground">Paste a direct image URL (PNG, JPG, SVG).</p>
             </div>
 
-            {/* ── UPI ID ── */}
-            <div className="space-y-2 pt-1">
-              <Label htmlFor="upi_id" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <ScanLine className="h-3 w-3" /> UPI ID for Receipts
-              </Label>
-              <Input id="upi_id" value={storeSettings.upi_id} onChange={(e) => setStoreSettings({ ...storeSettings, upi_id: e.target.value })} placeholder="yourstore@upi" className="h-11 rounded-xl bg-background border-border" />
-              <p className="text-[10px] text-muted-foreground">This UPI ID will be shown as a QR code on printed receipts.</p>
+            {/* ── UPI IDs (Multiple Billing Counters) ── */}
+            <div className="space-y-4 pt-1">
+              <div className="flex justify-between items-center">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                  <ScanLine className="h-3 w-3" /> UPI IDs (Multiple Billing Counters)
+                </Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUpiList([...upiList, { id: `counter-${Date.now()}`, label: `Counter ${upiList.length + 1}`, upi: "", isDefault: false }])}
+                  className="h-8 rounded-lg text-xs hover:bg-white/5"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Add Counter
+                </Button>
+              </div>
+
+              <div className="space-y-2.5">
+                {upiList.map((item, index) => (
+                  <div key={item.id} className="flex gap-2 items-center p-3 rounded-xl bg-white/5 border border-white/5 relative animate-fade-in">
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Counter Name / Label</Label>
+                        <Input
+                          placeholder="e.g. Counter 1"
+                          value={item.label}
+                          onChange={(e) => {
+                            const copy = [...upiList]
+                            copy[index].label = e.target.value
+                            setUpiList(copy)
+                          }}
+                          className="h-9 text-xs rounded-lg"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">UPI ID</Label>
+                        <Input
+                          placeholder="merchant@upi"
+                          value={item.upi}
+                          onChange={(e) => {
+                            const copy = [...upiList]
+                            copy[index].upi = e.target.value
+                            setUpiList(copy)
+                          }}
+                          className="h-9 text-xs rounded-lg font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-2 pt-4">
+                      {/* Default Toggle */}
+                      <Button
+                        type="button"
+                        variant={item.isDefault ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          const copy = upiList.map((u, i) => ({ ...u, isDefault: i === index }))
+                          setUpiList(copy)
+                        }}
+                        className={`h-8 px-2.5 text-[10px] rounded-lg shrink-0 ${
+                          item.isDefault ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "hover:bg-white/5"
+                        }`}
+                      >
+                        {item.isDefault ? "Default" : "Set Default"}
+                      </Button>
+                      
+                      {/* Delete Button */}
+                      {upiList.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            const copy = upiList.filter((_, i) => i !== index)
+                            if (item.isDefault && copy.length > 0) {
+                              copy[0].isDefault = true
+                            }
+                            setUpiList(copy)
+                          }}
+                          className="h-8 w-8 rounded-lg hover:bg-red-500/10 hover:text-red-400 shrink-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Define the UPI IDs of your active billing counters. In the POS checkout, cashiers will be able to switch between them dynamically.
+              </p>
             </div>
 
             {/* ── QR Code Section ── */}

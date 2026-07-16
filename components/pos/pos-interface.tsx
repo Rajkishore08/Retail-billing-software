@@ -87,6 +87,61 @@ export function POSInterface() {
   const [discountAmount, setDiscountAmount] = useState(0)
   const [discountPercentage, setDiscountPercentage] = useState(0)
 
+  // Save/load draft state
+  const [draftLoaded, setDraftLoaded] = useState(false)
+
+  // Load draft on mount
+  useEffect(() => {
+    try {
+      const savedDraft = localStorage.getItem("pos_bill_draft")
+      if (savedDraft) {
+        const parsed = JSON.parse(savedDraft)
+        if (parsed.cart && Array.isArray(parsed.cart)) setCart(parsed.cart)
+        if (parsed.selectedCustomer) setSelectedCustomer(parsed.selectedCustomer)
+        if (parsed.paymentMethod) setPaymentMethod(parsed.paymentMethod)
+        if (parsed.cashReceived !== undefined) setCashReceived(parsed.cashReceived)
+        if (parsed.loyaltyPointsRedeemed !== undefined) setLoyaltyPointsRedeemed(parsed.loyaltyPointsRedeemed)
+        if (parsed.loyaltyDiscountAmount !== undefined) setLoyaltyDiscountAmount(parsed.loyaltyDiscountAmount)
+        if (parsed.discountAmount !== undefined) setDiscountAmount(parsed.discountAmount)
+        if (parsed.discountPercentage !== undefined) setDiscountPercentage(parsed.discountPercentage)
+      }
+    } catch (e) {
+      console.error("Failed to parse saved POS bill draft", e)
+    } finally {
+      setDraftLoaded(true)
+    }
+  }, [])
+
+  // Save bill draft to localStorage
+  useEffect(() => {
+    if (!draftLoaded) return
+    try {
+      const billState = {
+        cart,
+        selectedCustomer,
+        paymentMethod,
+        cashReceived,
+        loyaltyPointsRedeemed,
+        loyaltyDiscountAmount,
+        discountAmount,
+        discountPercentage,
+      }
+      localStorage.setItem("pos_bill_draft", JSON.stringify(billState))
+    } catch (e) {
+      console.error("Failed to save POS bill draft", e)
+    }
+  }, [
+    draftLoaded,
+    cart,
+    selectedCustomer,
+    paymentMethod,
+    cashReceived,
+    loyaltyPointsRedeemed,
+    loyaltyDiscountAmount,
+    discountAmount,
+    discountPercentage,
+  ])
+
   // Barcode scanner state
   const [isScanning, setIsScanning] = useState(false)
   const barcodeInputRef = useRef<HTMLInputElement>(null)
@@ -94,6 +149,39 @@ export function POSInterface() {
   // Add product dialog state
   const [showAddProductDialog, setShowAddProductDialog] = useState(false)
   const [storeSettings, setStoreSettings] = useState<Record<string, string>>({})
+  const [activeUpiCounterId, setActiveUpiCounterId] = useState<string>("")
+
+  // Find list of counters from settings
+  const upiCounters = useMemo(() => {
+    if (storeSettings.upi_ids) {
+      try {
+        return JSON.parse(storeSettings.upi_ids) as { id: string; label: string; upi: string; isDefault: boolean }[]
+      } catch {}
+    }
+    if (storeSettings.upi_id) {
+      return [{ id: "legacy-default", label: "Default Counter", upi: storeSettings.upi_id, isDefault: true }]
+    }
+    return []
+  }, [storeSettings])
+
+  // Select active UPI Counter
+  const activeUpiCounter = useMemo(() => {
+    if (upiCounters.length === 0) return null
+    return upiCounters.find(u => u.id === activeUpiCounterId) || upiCounters.find(u => u.isDefault) || upiCounters[0] || null
+  }, [upiCounters, activeUpiCounterId])
+
+  // Sticky counter selection on this device/browser
+  useEffect(() => {
+    if (upiCounters.length > 0 && !activeUpiCounterId) {
+      try {
+        const savedId = localStorage.getItem("pos_active_upi_counter_id")
+        const defaultCounter = upiCounters.find(u => u.isDefault) || upiCounters[0]
+        const initialId = (savedId && upiCounters.some(u => u.id === savedId)) ? savedId : defaultCounter.id
+        setActiveUpiCounterId(initialId)
+      } catch {}
+    }
+  }, [upiCounters, activeUpiCounterId])
+
   const [productImages, setProductImages] = useState<Record<string, string>>({})
   const [newProductForm, setNewProductForm] = useState({
     name: "",
@@ -556,6 +644,7 @@ export function POSInterface() {
         loyalty_points_earned: selectedCustomer ? loyaltyPointsEarned : 0,
         loyalty_points_redeemed: loyaltyPointsRedeemed,
         loyalty_discount_amount: loyaltyDiscountAmount,
+        upi_id: activeUpiCounter ? activeUpiCounter.upi : storeSettings.upi_id,
       }
 
       // Reset state
@@ -566,6 +655,9 @@ export function POSInterface() {
       setLoyaltyDiscountAmount(0)
       setDiscountAmount(0)
       setDiscountPercentage(0)
+      try {
+        localStorage.removeItem("pos_bill_draft")
+      } catch {}
 
       setLastTransaction(receiptTransaction)
       setShowReceipt(true)
@@ -603,10 +695,14 @@ export function POSInterface() {
   const clearCart = useCallback(() => {
     setCart([])
     setCashReceived("")
+    setSelectedCustomer(null)
     setLoyaltyPointsRedeemed(0)
     setLoyaltyDiscountAmount(0)
     setDiscountAmount(0)
     setDiscountPercentage(0)
+    try {
+      localStorage.removeItem("pos_bill_draft")
+    } catch {}
   }, [])
 
   const formatCurrency = useCallback((amount: number) => {
@@ -656,7 +752,7 @@ export function POSInterface() {
   }
 
   const getUpiQrUrl = () => {
-    const upiId = storeSettings.upi_id
+    const upiId = activeUpiCounter ? activeUpiCounter.upi : storeSettings.upi_id
     if (!upiId) return null
     const amount = roundedTotal.toFixed(2)
     const upiString = `upi://pay?pa=${upiId}&am=${amount}&cu=INR`
@@ -1136,7 +1232,7 @@ export function POSInterface() {
 
             {(() => {
               const isUpi = paymentMethod === "upi"
-              const upiId = storeSettings.upi_id
+              const upiId = activeUpiCounter ? activeUpiCounter.upi : storeSettings.upi_id
               const showDynamicQr = isUpi && !!upiId
               const uploadedQr = getStoreQrImage()
               const effectiveQr = uploadedQr || null
@@ -1145,7 +1241,28 @@ export function POSInterface() {
               if (!qrImageToDisplay) return null
 
               return (
-                <div className="bg-slate-50 dark:bg-slate-900/40 border border-border rounded-xl p-4 text-center space-y-2 shadow-sm animate-fade-in my-3">
+                <div className="bg-slate-50 dark:bg-slate-900/40 border border-border rounded-xl p-4 text-center space-y-3 shadow-sm animate-fade-in my-3">
+                  {isUpi && upiCounters.length > 1 && (
+                    <div className="space-y-1 text-left max-w-[240px] mx-auto">
+                      <Label className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Select Counter / UPI QR</Label>
+                      <select
+                        value={activeUpiCounterId}
+                        onChange={(e) => {
+                          const id = e.target.value
+                          setActiveUpiCounterId(id)
+                          try { localStorage.setItem("pos_active_upi_counter_id", id) } catch {}
+                        }}
+                        className="w-full h-8 rounded-lg bg-background border border-border text-xs px-2 focus:outline-none focus:border-emerald-500/50"
+                      >
+                        {upiCounters.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.label} ({c.upi.slice(0, 12)}...)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                     {showDynamicQr ? "Scan to Pay via UPI" : "Scan QR Code"}
                   </p>

@@ -3,6 +3,7 @@ import { Outfit, Space_Grotesk, Plus_Jakarta_Sans, Lexend } from "next/font/goog
 import "./globals.css"
 import { AppContent } from "@/components/app-content"
 import { Toaster } from "@/components/ui/sonner"
+import { ThemeProvider } from "@/components/theme-provider"
 
 /* ── Google Fonts via next/font ──────────────────────────────────────────── */
 const outfit = Outfit({
@@ -56,8 +57,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${outfit.variable} ${spaceGrotesk.variable} ${plusJakartaSans.variable} ${lexend.variable}`}
     >
       <body suppressHydrationWarning>
-        <AppContent>{children}</AppContent>
-        <Toaster richColors position="top-right" />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AppContent>{children}</AppContent>
+          <Toaster richColors position="top-right" />
+        </ThemeProvider>
       </body>
     </html>
   )

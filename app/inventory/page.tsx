@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
@@ -12,7 +12,7 @@ import { useAuth } from "@/contexts/auth-context"
 import {
   Package, AlertTriangle, Plus, Minus, Search, ScanLine,
   CheckCircle2, TrendingDown, TrendingUp, X, History, Box,
-  Warehouse,
+  Warehouse, SlidersHorizontal, Layers,
 } from "lucide-react"
 import { toast } from "sonner"
 import { getAllProductImages, placeholderClass, initials } from "@/lib/product-image-store"
@@ -26,6 +26,11 @@ type Product = {
   hsn_code: string
   barcode?: string
   brand: string
+  price: number
+  cost_price?: number | null
+  mrp?: number | null
+  selling_price?: number | null
+  created_at: string
 }
 
 type StockMovement = {
@@ -56,6 +61,34 @@ export default function InventoryPage() {
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
 
+  // Filter States
+  const [showFilters, setShowFilters] = useState(false)
+  const [sortBy, setSortBy] = useState<
+    "name_asc" | "name_desc" | "price_asc" | "price_desc" | "created_at_desc" | "created_at_asc" | "stock_asc" | "stock_desc"
+  >("name_asc")
+  const [selectedBrandFilter, setSelectedBrandFilter] = useState("all")
+  const [stockStatusFilter, setStockStatusFilter] = useState<"all" | "low" | "out" | "in">("all")
+  const [minPrice, setMinPrice] = useState("")
+  const [maxPrice, setMaxPrice] = useState("")
+  const [groupByBrand, setGroupByBrand] = useState(false)
+
+  const resetFilters = () => {
+    setSortBy("name_asc")
+    setSelectedBrandFilter("all")
+    setStockStatusFilter("all")
+    setMinPrice("")
+    setMaxPrice("")
+    setGroupByBrand(false)
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits: 0,
+    }).format(amount)
+  }
+
   useEffect(() => {
     fetchProducts()
     setProductImages(getAllProductImages())
@@ -64,18 +97,180 @@ export default function InventoryPage() {
   const fetchProducts = async () => {
     const { data, error } = await supabase
       .from("products")
-      .select("id, name, stock_quantity, min_stock_level, hsn_code, barcode, brand")
+      .select("id, name, stock_quantity, min_stock_level, hsn_code, barcode, brand, price, cost_price, mrp, selling_price, created_at")
       .order("name")
     if (!error) setProducts(data || [])
     setLoading(false)
   }
 
-  const filteredProducts = products.filter((p) =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.hsn_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (p.barcode && p.barcode.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    p.brand?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const availableBrands = Array.from(
+    new Set(products.map((p) => p.brand || "Unbranded").filter(Boolean))
+  ).sort()
+
+  const filteredProducts = products.filter((p) => {
+    // Search Term
+    const matchesSearch =
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.hsn_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.barcode && p.barcode.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      p.brand?.toLowerCase().includes(searchTerm.toLowerCase())
+
+    if (!matchesSearch) return false
+
+    // Brand filter
+    if (selectedBrandFilter !== "all") {
+      const pBrand = p.brand || "Unbranded"
+      if (pBrand !== selectedBrandFilter) return false
+    }
+
+    // Stock Status filter
+    const isLow = p.stock_quantity <= p.min_stock_level
+    if (stockStatusFilter === "low") {
+      if (!isLow) return false
+    } else if (stockStatusFilter === "out") {
+      if (p.stock_quantity > 0) return false
+    } else if (stockStatusFilter === "in") {
+      if (p.stock_quantity <= 0) return false
+    }
+
+    // Price Range filter
+    const effectivePrice = p.selling_price || p.price || 0
+    if (minPrice !== "") {
+      const min = parseFloat(minPrice)
+      if (!isNaN(min) && effectivePrice < min) return false
+    }
+    if (maxPrice !== "") {
+      const max = parseFloat(maxPrice)
+      if (!isNaN(max) && effectivePrice > max) return false
+    }
+
+    return true
+  })
+
+  // Sort products
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    switch (sortBy) {
+      case "name_asc":
+        return a.name.localeCompare(b.name)
+      case "name_desc":
+        return b.name.localeCompare(a.name)
+      case "price_asc":
+        return (a.selling_price || a.price || 0) - (b.selling_price || b.price || 0)
+      case "price_desc":
+        return (b.selling_price || b.price || 0) - (a.selling_price || a.price || 0)
+      case "created_at_desc":
+        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+      case "created_at_asc":
+        return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+      case "stock_asc":
+        return a.stock_quantity - b.stock_quantity
+      case "stock_desc":
+        return b.stock_quantity - a.stock_quantity
+      default:
+        return 0
+    }
+  })
+
+  // Group by Brand
+  const groupedProducts = useMemo(() => {
+    if (!groupByBrand) return null
+    const groups: Record<string, Product[]> = {}
+    sortedProducts.forEach((p) => {
+      const brand = p.brand || "Unbranded"
+      if (!groups[brand]) groups[brand] = []
+      groups[brand].push(p)
+    })
+    return groups
+  }, [sortedProducts, groupByBrand])
+
+  const renderProductCard = (p: Product, i: number) => {
+    const isLow = p.stock_quantity <= p.min_stock_level
+    const pct   = p.min_stock_level > 0 ? Math.min((p.stock_quantity / (p.min_stock_level * 3)) * 100, 100) : 100
+    const progressClass = isLow ? "progress-fill-rose" : pct < 60 ? "progress-fill-amber" : "progress-fill-emerald"
+    const priceDisplay = formatCurrency(p.selling_price || p.price || 0)
+
+    return (
+      <Card
+        key={p.id}
+        className={`border-border bg-card rounded-2xl overflow-hidden card-hover stagger-${Math.min(i+1,4)} animate-fade-in-up`}
+        style={{ animationDelay: `${(i % 8) * 0.04}s`, animationFillMode: "forwards" }}
+      >
+        <div className="p-4 space-y-3">
+          {/* Product header */}
+          <div className="flex items-start gap-3">
+            <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-border shadow-md">
+              {productImages[p.id] ? (
+                <img src={productImages[p.id]} className="w-full h-full object-cover" alt={p.name} />
+              ) : (
+                <div className={`w-full h-full ${placeholderClass(p.name)} text-white font-bold text-sm flex items-center justify-center`}>
+                  {initials(p.name)}
+                </div>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-sm leading-tight truncate" title={p.name}>{p.name}</h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{p.brand || "Unbranded"}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs font-bold text-blue-400 font-numeric">{priceDisplay}</span>
+                {p.barcode && (
+                  <span className="text-[9px] text-slate-500 font-mono truncate max-w-[80px]" title={p.barcode}>{p.barcode}</span>
+                )}
+              </div>
+            </div>
+            {/* Stock badge */}
+            <span
+              className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-lg ${
+                isLow ? "bg-rose-500/20 text-rose-400" : "bg-emerald-500/20 text-emerald-400"
+              }`}
+            >
+              {isLow ? "LOW" : "OK"}
+            </span>
+          </div>
+
+          {/* Stock quantities */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="p-2.5 rounded-xl text-center"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <p className="text-lg font-bold font-numeric" style={{ color: isLow ? "#fca5a5" : "#6ee7b7" }}>
+                {p.stock_quantity}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-0.5 font-medium">Current Qty</p>
+            </div>
+            <div className="p-2.5 rounded-xl text-center"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <p className="text-lg font-bold font-numeric text-slate-300">{p.min_stock_level}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5 font-medium">Min Level</p>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div className="space-y-1">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] text-muted-foreground">Stock Level</span>
+              <span className="text-[10px] font-semibold" style={{ color: isLow ? "#fca5a5" : "#6ee7b7" }}>
+                {Math.round(pct)}%
+              </span>
+            </div>
+            <div className="progress-track">
+              <div className={`progress-fill ${progressClass}`} style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" size="sm" onClick={() => openAdjustmentDialog(p)}
+              className="flex-1 h-9 text-xs font-semibold rounded-xl hover:border-emerald-500/50 hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors">
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Adjust
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => openHistory(p)}
+              className="h-9 px-3 rounded-xl hover:border-blue-500/50 hover:text-blue-400 hover:bg-blue-500/5 shrink-0 transition-colors">
+              <History className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      </Card>
+    )
+  }
 
   const lowStockProducts = products.filter((p) => p.stock_quantity <= p.min_stock_level)
   const totalUnits = products.reduce((s, p) => s + p.stock_quantity, 0)
@@ -245,28 +440,168 @@ export default function InventoryPage() {
         ))}
       </div>
 
-      {/* ── Search ─────────────────────────────────────── */}
-      <div className="relative max-w-xl">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          ref={searchRef}
-          placeholder="Search items or scan barcode + Enter…"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          onKeyDown={handleSearchKeyDown}
-          className="pl-10 h-11 rounded-xl bg-card border-border pr-28"
-        />
-        {searchTerm && (
-          <button onClick={() => setSearchTerm("")}
-            className="absolute right-[90px] top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
-        )}
-        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-          <Badge className="bg-white/8 text-slate-300 pointer-events-none rounded-lg text-[10px] gap-1 px-2 border-white/10">
-            <ScanLine className="h-3 w-3" /> SCAN
-          </Badge>
+      {/* ── Search & Filter Controls ──────────────────────── */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap sm:flex-nowrap gap-3 items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              ref={searchRef}
+              placeholder="Search items or scan barcode + Enter…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              className="pl-10 h-11 rounded-xl bg-card border-border pr-28 w-full"
+            />
+            {searchTerm && (
+              <button onClick={() => setSearchTerm("")}
+                className="absolute right-[90px] top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <Badge className="bg-white/8 text-slate-300 pointer-events-none rounded-lg text-[10px] gap-1 px-2 border-white/10">
+                <ScanLine className="h-3 w-3" /> SCAN
+              </Badge>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setShowFilters(!showFilters)}
+            className={`h-11 px-4 rounded-xl border-border flex items-center gap-2 hover:bg-white/5 transition-all duration-200 shrink-0 ${
+              showFilters ? "bg-white/5 border-emerald-500/50 text-emerald-400" : "bg-card"
+            }`}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            <span>Filters</span>
+            {(sortBy !== "name_asc" || selectedBrandFilter !== "all" || stockStatusFilter !== "all" || minPrice !== "" || maxPrice !== "" || groupByBrand) && (
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            )}
+          </Button>
         </div>
+
+        {/* Collapsible Filter Panel */}
+        {showFilters && (
+          <Card className="border-border bg-card/40 backdrop-blur-md rounded-2xl overflow-hidden animate-fade-in-down border border-white/10">
+            <CardContent className="p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                {/* 1. Sort By */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Sort By</Label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="w-full h-10 rounded-xl bg-background border border-border text-xs px-3 text-slate-200 focus:outline-none focus:border-emerald-500/50"
+                  >
+                    <option value="name_asc">Name (A-Z)</option>
+                    <option value="name_desc">Name (Z-A)</option>
+                    <option value="price_asc">Price: Low to High</option>
+                    <option value="price_desc">Price: High to Low</option>
+                    <option value="created_at_desc">Date Added: Newest First</option>
+                    <option value="created_at_asc">Date Added: Oldest First</option>
+                    <option value="stock_asc">Stock: Low to High</option>
+                    <option value="stock_desc">Stock: High to Low</option>
+                  </select>
+                </div>
+
+                {/* 2. Brand Filter */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Brand</Label>
+                  <select
+                    value={selectedBrandFilter}
+                    onChange={(e) => setSelectedBrandFilter(e.target.value)}
+                    className="w-full h-10 rounded-xl bg-background border border-border text-xs px-3 text-slate-200 focus:outline-none focus:border-emerald-500/50"
+                  >
+                    <option value="all">All Brands</option>
+                    <option value="Unbranded">Unbranded</option>
+                    {availableBrands.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3. Stock Status */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Stock Status</Label>
+                  <select
+                    value={stockStatusFilter}
+                    onChange={(e) => setStockStatusFilter(e.target.value as any)}
+                    className="w-full h-10 rounded-xl bg-background border border-border text-xs px-3 text-slate-200 focus:outline-none focus:border-emerald-500/50"
+                  >
+                    <option value="all">All Stock Statuses</option>
+                    <option value="low">Low Stock Alert</option>
+                    <option value="out">Out of Stock</option>
+                    <option value="in">In Stock</option>
+                  </select>
+                </div>
+
+                {/* 4. Grouping & Reset */}
+                <div className="space-y-1.5 flex flex-col justify-between">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Grouping</Label>
+                  <div className="flex items-center gap-2 h-10">
+                    <button
+                      type="button"
+                      onClick={() => setGroupByBrand(!groupByBrand)}
+                      className={`flex-1 h-full rounded-xl border border-border text-xs font-semibold flex items-center justify-center gap-2 hover:bg-white/5 transition-colors ${
+                        groupByBrand ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-background"
+                      }`}
+                    >
+                      <Layers className="h-3.5 w-3.5" />
+                      <span>Group by Brand</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Second Row: Price Range & Clear Filters */}
+              <div className="flex flex-wrap items-end justify-between gap-4 pt-2 border-t border-white/5">
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="space-y-1.5 flex-1 sm:flex-initial">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Min Price</Label>
+                    <Input
+                      type="number"
+                      placeholder="Min"
+                      value={minPrice}
+                      onChange={(e) => setMinPrice(e.target.value)}
+                      className="h-10 text-xs rounded-xl bg-background border-border w-full sm:w-28"
+                    />
+                  </div>
+                  <span className="text-muted-foreground self-end mb-2.5">to</span>
+                  <div className="space-y-1.5 flex-1 sm:flex-initial">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Max Price</Label>
+                    <Input
+                      type="number"
+                      placeholder="Max"
+                      value={maxPrice}
+                      onChange={(e) => setMaxPrice(e.target.value)}
+                      className="h-10 text-xs rounded-xl bg-background border-border w-full sm:w-28"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 w-full sm:w-auto">
+                  {(sortBy !== "name_asc" || selectedBrandFilter !== "all" || stockStatusFilter !== "all" || minPrice !== "" || maxPrice !== "" || groupByBrand) && (
+                    <Button
+                      variant="ghost"
+                      onClick={resetFilters}
+                      className="h-10 text-xs font-bold hover:bg-red-500/10 text-red-400 rounded-xl"
+                    >
+                      Clear Filters
+                    </Button>
+                  )}
+                  <Button
+                    onClick={() => setShowFilters(false)}
+                    className="h-10 text-xs font-bold rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300"
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* ── Low Stock Alert Banner ──────────────────────── */}
@@ -302,101 +637,36 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* ── Products Grid ───────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-        {filteredProducts.map((p, i) => {
-          const isLow = p.stock_quantity <= p.min_stock_level
-          const pct   = p.min_stock_level > 0 ? Math.min((p.stock_quantity / (p.min_stock_level * 3)) * 100, 100) : 100
-          const progressClass = isLow ? "progress-fill-rose" : pct < 60 ? "progress-fill-amber" : "progress-fill-emerald"
-
-          return (
-            <Card
-              key={p.id}
-              className={`border-border bg-card rounded-2xl overflow-hidden card-hover stagger-${Math.min(i+1,4)} animate-fade-in-up`}
-              style={{ animationDelay: `${(i % 8) * 0.04}s`, animationFillMode: "forwards" }}
-            >
-              <div className="p-4 space-y-3">
-                {/* Product header */}
-                <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-border shadow-md">
-                    {productImages[p.id] ? (
-                      <img src={productImages[p.id]} className="w-full h-full object-cover" alt={p.name} />
-                    ) : (
-                      <div className={`w-full h-full ${placeholderClass(p.name)} text-white font-bold text-sm flex items-center justify-center`}>
-                        {initials(p.name)}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-sm leading-tight truncate">{p.name}</h3>
-                    <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{p.brand}</p>
-                    {p.barcode && (
-                      <p className="text-[10px] text-slate-500 mt-0.5 font-mono">{p.barcode.slice(-8)}</p>
-                    )}
-                  </div>
-                  {/* Stock badge */}
-                  <span
-                    className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-lg ${
-                      isLow ? "bg-rose-500/20 text-rose-400" : "bg-emerald-500/20 text-emerald-400"
-                    }`}
-                  >
-                    {isLow ? "LOW" : "OK"}
-                  </span>
-                </div>
-
-                {/* Stock quantities */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="p-2.5 rounded-xl text-center"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    <p className="text-lg font-bold font-numeric" style={{ color: isLow ? "#fca5a5" : "#6ee7b7" }}>
-                      {p.stock_quantity}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5 font-medium">Current Qty</p>
-                  </div>
-                  <div className="p-2.5 rounded-xl text-center"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    <p className="text-lg font-bold font-numeric text-slate-300">{p.min_stock_level}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5 font-medium">Min Level</p>
-                  </div>
-                </div>
-
-                {/* Progress bar */}
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] text-muted-foreground">Stock Level</span>
-                    <span className="text-[10px] font-semibold" style={{ color: isLow ? "#fca5a5" : "#6ee7b7" }}>
-                      {Math.round(pct)}%
-                    </span>
-                  </div>
-                  <div className="progress-track">
-                    <div className={`progress-fill ${progressClass}`} style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-
-                {/* Action buttons */}
-                <div className="flex gap-2 pt-1">
-                  <Button variant="outline" size="sm" onClick={() => openAdjustmentDialog(p)}
-                    className="flex-1 h-9 text-xs font-semibold rounded-xl hover:border-emerald-500/50 hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors">
-                    <Plus className="h-3.5 w-3.5 mr-1.5" /> Adjust
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => openHistory(p)}
-                    className="h-9 px-3 rounded-xl hover:border-blue-500/50 hover:text-blue-400 hover:bg-blue-500/5 shrink-0 transition-colors">
-                    <History className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+      {/* ── Products Grid / Grouped Sections ───────────────── */}
+      {groupByBrand ? (
+        <div className="space-y-8 animate-fade-in-up">
+          {Object.entries(groupedProducts || {}).map(([brand, brandProducts]) => (
+            <div key={brand} className="space-y-4">
+              <div className="flex items-center gap-2 pb-1 border-b border-white/5">
+                <h2 className="text-lg font-bold text-slate-200 tracking-tight">{brand}</h2>
+                <Badge variant="secondary" className="rounded-lg text-[10px] bg-white/5 border border-white/10 text-slate-400 px-2 py-0.5">
+                  {brandProducts.length} item{brandProducts.length > 1 ? "s" : ""}
+                </Badge>
               </div>
-            </Card>
-          )
-        })}
-      </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                {brandProducts.map((p, i) => renderProductCard(p, i))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          {sortedProducts.map((p, i) => renderProductCard(p, i))}
+        </div>
+      )}
 
-      {filteredProducts.length === 0 && !loading && (
+      {sortedProducts.length === 0 && !loading && (
         <div className="text-center py-20 animate-fade-in">
           <div className="w-16 h-16 rounded-2xl gradient-emerald flex items-center justify-center mx-auto mb-4">
             <Package className="h-8 w-8 text-white" />
           </div>
           <h3 className="font-bold text-lg mb-1">No products found</h3>
-          <p className="text-sm text-muted-foreground">Try a different search term.</p>
+          <p className="text-sm text-muted-foreground font-medium">Try adjusting your filters or search query.</p>
         </div>
       )}
 

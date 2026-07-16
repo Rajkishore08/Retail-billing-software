@@ -5,7 +5,6 @@ import { useEffect, useState } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { LoginForm } from "@/components/login-form"
 import { Sidebar } from "@/components/layout/sidebar"
-import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/contexts/auth-context"
 import { ShoppingBag } from "lucide-react"
 
@@ -31,22 +30,20 @@ export function AppContent({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="dark"
-      enableSystem
-      disableTransitionOnChange
-    >
-      <AuthProvider>
-        <AppContentInner>{children}</AppContentInner>
-      </AuthProvider>
-    </ThemeProvider>
+    <AuthProvider>
+      <AppContentInner>{children}</AppContentInner>
+    </AuthProvider>
   )
 }
 
 function AppContentInner({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   const [stuck, setStuck] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Belt-and-suspenders: auth-context has its own request timeouts, but if
   // loading is somehow still stuck after 12s (e.g. an unrelated hang), give
@@ -60,7 +57,7 @@ function AppContentInner({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(timer)
   }, [loading])
 
-  if (loading) {
+  if (!mounted || loading) {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
@@ -76,51 +73,53 @@ function AppContentInner({ children }: { children: React.ReactNode }) {
           style={{ background: "radial-gradient(circle, rgba(5,150,105,0.35), transparent 70%)", animationDelay: "-5s" }}
         />
 
-        <div className="text-center space-y-6 animate-fade-in relative z-10">
-          {/* Layered spinner */}
-          <div className="relative mx-auto w-20 h-20">
-            {/* Outer ring */}
-            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-blue-400 border-r-blue-500/50 animate-spin" />
-            {/* Middle ring */}
-            <div className="absolute inset-2 rounded-full border-2 border-transparent border-b-emerald-400 border-l-emerald-500/50 animate-spin" style={{ animationDirection: "reverse", animationDuration: "1.4s" }} />
-            {/* Inner brand icon */}
-            <div className="absolute inset-4 rounded-full flex items-center justify-center shadow-xl glow-blue overflow-hidden bg-white/5 border border-white/10">
-              <img src="/logo.png" alt="Techno Bills Logo" className="w-full h-full object-contain p-1" />
-            </div>
-          </div>
-
-          <div>
-            <p className="text-white font-bold text-lg tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-              Techno Bills
-            </p>
-            <p className="text-slate-500 text-sm mt-1.5 font-medium">
-              {stuck ? "Taking longer than usual…" : "Initializing POS System…"}
-            </p>
-            {/* Progress dots */}
-            <div className="flex justify-center gap-1.5 mt-4">
-              {[0, 1, 2].map(i => (
-                <span
-                  key={i}
-                  className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce-subtle"
-                  style={{ animationDelay: `${i * 0.2}s` }}
-                />
-              ))}
-            </div>
-            {stuck && (
-              <div className="mt-5 space-y-2">
-                <p className="text-slate-500 text-xs">
-                  This is usually a network or connection issue.
-                </p>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-white gradient-primary hover:opacity-90 transition-opacity"
-                >
-                  Retry
-                </button>
+        {mounted && (
+          <div className="text-center space-y-6 animate-fade-in relative z-10">
+            {/* Layered spinner */}
+            <div className="relative mx-auto w-32 h-32">
+              {/* Outer ring */}
+              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-blue-400 border-r-blue-500/50 animate-spin" />
+              {/* Middle ring */}
+              <div className="absolute inset-2 rounded-full border-2 border-transparent border-b-emerald-400 border-l-emerald-500/50 animate-spin" style={{ animationDirection: "reverse", animationDuration: "1.4s" }} />
+              {/* Inner brand icon */}
+              <div className="absolute inset-3.5 rounded-full flex items-center justify-center shadow-2xl glow-blue overflow-hidden bg-white/5 border border-white/10">
+                <img src="/logo.png" alt="Techno Bills Logo" className="w-full h-full object-contain" />
               </div>
-            )}
+            </div>
+
+            <div>
+              <p className="text-white font-bold text-lg tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                Techno Bills
+              </p>
+              <p className="text-slate-500 text-sm mt-1.5 font-medium">
+                {stuck ? "Taking longer than usual…" : "Initializing POS System…"}
+              </p>
+              {/* Progress dots */}
+              <div className="flex justify-center gap-1.5 mt-4">
+                {[0, 1, 2].map(i => (
+                  <span
+                    key={i}
+                    className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce-subtle"
+                    style={{ animationDelay: `${i * 0.2}s` }}
+                  />
+                ))}
+              </div>
+              {stuck && (
+                <div className="mt-5 space-y-2">
+                  <p className="text-slate-500 text-xs">
+                    This is usually a network or connection issue.
+                  </p>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2 rounded-lg text-sm font-medium text-white gradient-primary hover:opacity-90 transition-opacity"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     )
   }
