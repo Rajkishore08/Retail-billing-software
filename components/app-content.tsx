@@ -6,7 +6,8 @@ import { useAuth } from "@/contexts/auth-context"
 import { LoginForm } from "@/components/login-form"
 import { Sidebar } from "@/components/layout/sidebar"
 import { AuthProvider } from "@/contexts/auth-context"
-import { ShoppingBag } from "lucide-react"
+import { ShoppingBag, Sun, Moon } from "lucide-react"
+import { useTheme } from "next-themes"
 
 export function AppContent({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -129,11 +130,37 @@ function AppContentInner({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-screen bg-background overflow-hidden relative">
       <Sidebar />
-      <main className="flex-1 overflow-auto min-w-0">
+      <main className="flex-1 overflow-auto min-w-0 relative">
+        <FloatingThemeToggle />
         <div className="p-6 min-h-full">{children}</div>
       </main>
     </div>
+  )
+}
+
+function FloatingThemeToggle() {
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
+  if (!mounted) return null
+
+  const isDark = theme === "dark"
+
+  return (
+    <button
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      className="fixed top-4 right-4 z-50 w-9 h-9 rounded-xl flex items-center justify-center border bg-card/75 hover:bg-card border-border backdrop-blur-md shadow-md text-foreground transition-all duration-200"
+      title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+      type="button"
+    >
+      {isDark ? (
+        <Sun className="h-[16px] w-[16px] text-amber-400" />
+      ) : (
+        <Moon className="h-[16px] w-[16px] text-slate-700 dark:text-slate-200" />
+      )}
+    </button>
   )
 }

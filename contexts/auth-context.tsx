@@ -41,7 +41,7 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Pro
   ])
 }
 
-const AUTH_TIMEOUT_MS = 8000
+const AUTH_TIMEOUT_MS = 25000
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -142,7 +142,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (err) {
         console.error("Error initializing auth session:", err)
         if (active) {
-          try { localStorage.clear() } catch {}
           setUser(null)
           setProfile(null)
           setPermissions({})

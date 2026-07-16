@@ -162,7 +162,12 @@
   background: linear-gradient(135deg, #a21caf 0%, #7e22ce 100%);
 }
 .gradient-sidebar {
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 55%, #e2e8f0 100%);
+  border-right: 1px solid #e2e8f0;
+}
+.dark .gradient-sidebar {
   background: linear-gradient(180deg, #060612 0%, #0c0c1e 40%, #080814 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
 }
 .gradient-mesh {
   background: linear-gradient(135deg, #050a1e 0%, #051430 35%, #050f2e 65%, #050a1e 100%);
